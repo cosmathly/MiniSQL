@@ -8,6 +8,7 @@ char c;
 char cmd[cmd_max_size];
 int cnt_char = 0;
 char *err_info; // 记录全局的错误信息
+Data_Convert *data_convert;
 Buffer *buffer;
 Catalog_File *catalog_file;
 BPT_Info_File *bpt_info_file;
@@ -33,6 +34,7 @@ std::string *to_create_index_name, *to_create_index_table_name, *to_create_index
 std::string *to_delete_index_name;
 void initial()
 {
+     data_convert = new Data_Convert;
      buffer = new Buffer(64);
      catalog_file = new Catalog_File;
      bpt_info_file = new BPT_Info_File;

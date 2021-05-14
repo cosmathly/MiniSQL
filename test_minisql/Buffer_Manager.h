@@ -31,7 +31,7 @@ class Buffer
          int write_to_file(int block_id);
          int Read(File_Descriptor fd, offset_t offset_file, offset_t offset_block, char **read_start_place);
          /* 将指定位置的len个字节写入到文件 */
-         int Write(File_Descriptor fd, offset_t offset_file, offset_t offset_block, void *write_start_place, size_t len);
+         int Write(File_Descriptor fd, offset_t offset_file, offset_t offset_block, char *write_start_place, size_t len);
          int find_not_used_block();
          int find_LRU_block();
 };

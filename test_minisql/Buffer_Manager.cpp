@@ -101,11 +101,8 @@ int Buffer::Read(File_Descriptor fd, offset_t offset_file, offset_t offset_block
                }
             }
 }
-int Buffer::Write(File_Descriptor fd, offset_t offset_file, offset_t offset_block, void *write_start_place, size_t len)
+int Buffer::Write(File_Descriptor fd, offset_t offset_file, offset_t offset_block, char *write_start_place, size_t len)
 {
-            char *buf = (char *)write_start_place;
-            (*(buf+len)) = '\n';
-            len++;
             bool if_found = false;
             for(int i = 0; i < Block_Num; i++)
             {

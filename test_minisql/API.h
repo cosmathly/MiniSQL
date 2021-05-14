@@ -10,14 +10,16 @@
 #include <vector>
 #include <deque>
 #include <bits/stdc++.h>
+#include "Data_Convert.h"
 using namespace std;
 class BPT_File;
 class Table_File;
 class BPT_Info_File;
 typedef offset_t node_pointer;
 typedef int Max_Son_Node_Num; // B+树的阶
- class BPT_Node;
- class BPstring;
+class BPT_Node;
+class BPstring;
+typedef int type_t;
 class Table_File
 {
       public:
@@ -82,14 +84,15 @@ class BPT_Node
 {
       public:
          int key_num; // 关键字的数量
+         bool is_leaf;
          node_pointer parent;
-         std::deque<string> key;
-         std::deque<node_pointer> child;
-         std::deque<data_pointer> data;
          node_pointer pre_leaf;
          node_pointer next_leaf;
-         bool is_leaf; // 是否是叶子节点
-         BPT_Node() { }
+         std::list<string> key;
+         std::list<node_pointer> child;
+         std::list<data_pointer> data;
+          // 是否是叶子节点
+         BPT_Node();
          ~BPT_Node() { }
 };
 class All_Data
@@ -112,6 +115,7 @@ class BPT
          bool greater_equal(string a, string b) const;
          bool smaller_equal(string a, string b) const;
          BPT(size_t key_size, BPT_Pointer bpt, data_type type);
+         BPT(node_pointer root, Max_Son_Node_Num m, data_type type, BPT_Pointer bpt);
          void write_bpt_to_file() const;
          int insert(string one_key, data_pointer one_data); // 插入一个关键字
          int del(string one_key);
