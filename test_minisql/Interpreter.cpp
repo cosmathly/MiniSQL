@@ -346,8 +346,8 @@ cmd_type parse_insert(std::vector<std::string> &all_str)
             tmp.op = "=";
             tmp.val = all_str[i+5];
             cond.push_back(tmp);
-            //Record_Set *record_set = record_manager->select_part_record(all_str[2], cond);
-            //if(record_set!=nullptr) { err_info = "conflict with some unique attribute error."; return Error; }
+            Record_Set *record_set = record_manager->select_part_record(all_str[2], cond);
+            if(record_set!=nullptr) { err_info = "conflict with some unique attribute error."; return Error; }
          } 
          if(cnt_unique==cnt_index)
          {  
@@ -535,13 +535,15 @@ int main()
                        all_attr = catalog_file->get_all_attr(*to_select_table_name);
                        for(auto it = all_attr->attr_info.begin(); it != all_attr->attr_info.end(); it++)
                        std::cout<<(*it).attr_name<<" ";
-                       std::cout<<std::endl;
+                       std::cout<<std::endl; 
                        for(auto it = record_set->record.begin(); it != record_set->record.end(); it++)
                        {
                            for(auto tmp_it = (*it).attr.begin(); tmp_it != (*it).attr.end(); tmp_it++)
                            std::cout<<(*tmp_it)<<" ";
                            std::cout<<std::endl;
                        }
+                       if(all_attr!=nullptr) delete all_attr;
+                       if(record_set!=nullptr) delete record_set;
                     }
                     break;
                     case select_part:

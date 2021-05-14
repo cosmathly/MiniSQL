@@ -57,8 +57,7 @@ int BPT::add_key_and_child(node_pointer des_node, string one_key, node_pointer s
 {
      BPT_Node *cur_node;
      char *buf;
-     int ret = buffer->Read(bpt_file->fd, des_node, 0, &buf);
-     if(ret==-1) return -1;
+     buffer->Read(bpt_file->fd, des_node, 0, &buf);
      size_t len;
      for(int i = 0; i < Block_Size; i++)
      if((*(buf+i))=='\n')
@@ -88,8 +87,7 @@ int BPT::add_key_and_child(node_pointer des_node, string one_key, node_pointer s
          }
          insert_id++;
      }
-     size_t len;
-     char *buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+     buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
      buffer->Write(bpt_file->fd, des_node, 0, buf, len);
      delete [] buf;
      return 0;
@@ -228,6 +226,7 @@ int BPT::insert(string one_key, data_pointer one_data)
        root = bpt_file->offset_file;
        bpt_file->offset_file += Block_Size;
        BPT_Node new_root;
+       new_root.key_num = 1;
        new_root.is_leaf = true;
        new_root.pre_leaf = -1;
        new_root.next_leaf = -1;
@@ -244,13 +243,12 @@ int BPT::insert(string one_key, data_pointer one_data)
     int ret;
     int cur_id;
     int insert_id;
-    BPT_Node *cur_node;
+    BPT_Node *cur_node = nullptr;
     char *buf;
     node_pointer now_node = root;
     while(true)
     {
-         ret = buffer->Read(bpt_file->fd, now_node, 0, &buf);
-         if(ret==-1) return -1; 
+         buffer->Read(bpt_file->fd, now_node, 0, &buf);
          size_t len;
          for(int i = 0; i < Block_Size; i++)
          if((*(buf+i))=='\n')
@@ -258,6 +256,7 @@ int BPT::insert(string one_key, data_pointer one_data)
             len = i;
             break;
          }
+         if(cur_node!=nullptr) delete cur_node;
          cur_node = data_convert->parse_bpt_node(buf, len);
          if(cur_node->is_leaf==true) break;
          cur_id = 0;
@@ -309,9 +308,10 @@ int BPT::insert(string one_key, data_pointer one_data)
     { 
        size_t len;
        char *buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
-       int ret = buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+       buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+       if(cur_node!=nullptr) delete cur_node;
        delete [] buf;
-       return ret;
+       return 0;
     }
     // 如果关键字的个数达到了m个
     while(now_node!=root&&cur_node->key_num==m)
@@ -383,8 +383,8 @@ int BPT::insert(string one_key, data_pointer one_data)
              delete [] buf;
           }
           now_node = cur_node->parent;
-          ret = buffer->Read(bpt_file->fd, now_node, 0, &buf);
-          if(ret==-1) return -1;
+          buffer->Read(bpt_file->fd, now_node, 0, &buf);
+          
           size_t len;
           for(int i = 0; i < Block_Size; i++)
           if((*(buf+i))=='\n')
@@ -686,8 +686,8 @@ int BPT::del(string one_key) // 已经确保one_key存在
     node_pointer now_node = root;
     while(true)
     {
-         ret = buffer->Read(bpt_file->fd, now_node, 0, &buf);
-         if(ret==-1) return -1;
+         buffer->Read(bpt_file->fd, now_node, 0, &buf);
+         
          size_t len;
          for(int i = 0; i < Block_Size; i++)
          if((*(buf+i))=='\n')
@@ -747,8 +747,9 @@ int BPT::del(string one_key) // 已经确保one_key存在
     { 
        size_t len;
        char *buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
-       int ret = buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-       delete 
+       buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+       delete [] buf;
+       return ret;
     }
     if(now_node==root)
     {
@@ -757,15 +758,21 @@ int BPT::del(string one_key) // 已经确保one_key存在
           root = -1;
           return 0;
        } 
-       else return buffer->Write(bpt_file->fd, root, 0, cur_node, sizeof(*cur_node));
+       else 
+       { 
+          size_t len;
+          char *buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+          buffer->Write(bpt_file->fd, root, 0, buf, len);
+          delete [] buf;
+          return ret;
+       }
     }
     while(now_node!=root&&cur_node->key_num<min_key_num)
     {
           if(cur_node->is_leaf==true)
           {
              BPT_Node *fa_node;
-             ret = buffer->Read(bpt_file->fd, cur_node->parent, 0, &buf);
-             if(ret==-1) return -1; 
+             buffer->Read(bpt_file->fd, cur_node->parent, 0, &buf);  
              size_t len;
              for(int i = 0; i < Block_Size; i++)
              if((*(buf+i))=='\n')
@@ -780,9 +787,7 @@ int BPT::del(string one_key) // 已经确保one_key存在
              if((*it)==fa_node->child.front())
              {
                 BPT_Node *brother_node;
-                ret = buffer->Read(bpt_file->fd, cur_node->next_leaf, 0, &buf);
-                if(ret==-1) return -1;
-                size_t len;
+                buffer->Read(bpt_file->fd, cur_node->next_leaf, 0, &buf);
                 for(int i = 0; i < Block_Size; i++)
                 if((*(buf+i))=='\n')
                 {
@@ -799,12 +804,15 @@ int BPT::del(string one_key) // 已经确保one_key存在
                    cur_node->data.push_back(brother_node->data.front());
                    brother_node->data.pop_front();
                    update(fa_node, cur_node->next_leaf, brother_node->key.front());
-                   ret = buffer->Write(bpt_file->fd, cur_node->parent, 0, fa_node, sizeof(*fa_node));
-                   if(ret==-1) return -1;
-                   ret = buffer->Write(bpt_file->fd, now_node, 0, cur_node, sizeof(*cur_node));
-                   if(ret==-1) return -1;
-                   ret = buffer->Write(bpt_file->fd, cur_node->next_leaf, 0, brother_node, sizeof(*brother_node));
-                   if(ret==-1) return -1;
+                   char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                   buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                   delete [] buf;
+                   buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+                   buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+                   delete [] buf;
+                   buf = data_convert->reverse_parse_bpt_node(brother_node, &len);
+                   buffer->Write(bpt_file->fd, cur_node->next_leaf, 0, buf, len);
+                   delete [] buf;
                    return 0;
                 }
                 else 
@@ -823,9 +831,7 @@ int BPT::del(string one_key) // 已经确保one_key存在
                    BPT_Node *to_change_node;
                    if(brother_node->next_leaf!=-1)
                    {  
-                       ret = buffer->Read(bpt_file->fd, brother_node->next_leaf, 0, &buf);
-                       if(ret==-1) return -1;
-                       size_t len;
+                       buffer->Read(bpt_file->fd, brother_node->next_leaf, 0, &buf);
                        for(int i = 0; i < Block_Size; i++)
                        if((*(buf+i))=='\n')
                        {
@@ -836,23 +842,24 @@ int BPT::del(string one_key) // 已经确保one_key存在
                        to_change_node->pre_leaf = now_node;
                    }     
                    del_key_and_child(fa_node, cur_node->next_leaf);
-                   ret = buffer->Write(bpt_file->fd, cur_node->parent, 0, fa_node, sizeof(*fa_node));
-                   if(ret==-1) return -1;
-                   ret = buffer->Write(bpt_file->fd, now_node, 0, cur_node, sizeof(*cur_node));
-                   if(ret==-1) return -1;
+                   char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                   buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                   delete [] buf;
+                   buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+                   buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+                   delete [] buf;
                    if(brother_node->next_leaf!=-1)
                    {
-                      ret = buffer->Write(bpt_file->fd, brother_node->next_leaf, 0, to_change_node, sizeof(*to_change_node));
-                      if(ret==-1) return -1;
+                      buf = data_convert->reverse_parse_bpt_node(to_change_node, &len);
+                      buffer->Write(bpt_file->fd, brother_node->next_leaf, 0, buf, len);
+                      delete [] buf;
                    }  
                 }
              }
              else if((*it)==fa_node->child.back())
              {
                   BPT_Node *brother_node;
-                  ret = buffer->Read(bpt_file->fd, cur_node->pre_leaf, 0, &buf);
-                  if(ret==-1) return -1;
-                  size_t len;
+                  buffer->Read(bpt_file->fd, cur_node->pre_leaf, 0, &buf);
                   for(int i = 0; i < Block_Size; i++)
                   if((*(buf+i))=='\n')
                   {
@@ -870,12 +877,15 @@ int BPT::del(string one_key) // 已经确保one_key存在
                      cur_node->data.push_front(brother_node->data.back());
                      brother_node->data.pop_back();
                      update(fa_node, now_node, cur_node->key.front());
-                     ret = buffer->Write(bpt_file->fd, cur_node->parent, 0, fa_node, sizeof(*fa_node));
-                     if(ret==-1) return -1;
-                     ret = buffer->Write(bpt_file->fd, now_node, 0, cur_node, sizeof(*cur_node));
-                     if(ret==-1) return -1;
-                     ret = buffer->Write(bpt_file->fd, cur_node->pre_leaf, 0, brother_node, sizeof(*brother_node));
-                     if(ret==-1) return -1;
+                     char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                     buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                     delete [] buf;
+                     buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+                     buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+                     delete [] buf;
+                     buf = data_convert->reverse_parse_bpt_node(brother_node, &len);
+                     buffer->Write(bpt_file->fd, cur_node->pre_leaf, 0, buf, len);
+                     delete [] buf;
                      return 0;
                   }
                   else 
@@ -894,9 +904,7 @@ int BPT::del(string one_key) // 已经确保one_key存在
                      BPT_Node *to_change_node;
                      if(cur_node->next_leaf!=-1)
                      {
-                        ret = buffer->Read(bpt_file->fd, cur_node->next_leaf, 0, &buf);
-                        if(ret==-1) return -1;
-                        size_t len;
+                        buffer->Read(bpt_file->fd, cur_node->next_leaf, 0, &buf);
                         for(int i = 0; i < Block_Size; i++)
                         if((*(buf+i))=='\n')
                         {
@@ -907,23 +915,24 @@ int BPT::del(string one_key) // 已经确保one_key存在
                         to_change_node->pre_leaf = cur_node->pre_leaf;
                      }
                      del_key_and_child(fa_node, now_node);
-                     ret = buffer->Write(bpt_file->fd, cur_node->parent, 0, fa_node, sizeof(*fa_node));
-                     if(ret==-1) return -1;
-                     ret = buffer->Write(bpt_file->fd, cur_node->pre_leaf, 0, brother_node, sizeof(*brother_node));
-                     if(ret==-1) return -1;
+                     buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                     buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                     delete [] buf;
+                     buf = data_convert->reverse_parse_bpt_node(brother_node, &len);
+                     buffer->Write(bpt_file->fd, cur_node->pre_leaf, 0, buf, len);
+                     delete [] buf;
                      if(cur_node->next_leaf!=-1)
                      {
-                        ret = buffer->Write(bpt_file->fd, cur_node->next_leaf, 0, to_change_node, sizeof(*to_change_node));
-                        if(ret==-1) return -1;
+                        buf = data_convert->reverse_parse_bpt_node(to_change_node, &len);
+                        buffer->Write(bpt_file->fd, cur_node->next_leaf, 0, buf, len);
+                        delete [] buf;
                      }
                   }
              }
              else 
              {
                   BPT_Node *l_brother;
-                  ret = buffer->Read(bpt_file->fd, cur_node->pre_leaf, 0, &buf);
-                  if(ret==-1) return -1;
-                  size_t len;
+                  buffer->Read(bpt_file->fd, cur_node->pre_leaf, 0, &buf);
                   for(int i = 0; i < Block_Size; i++)
                   if((*(buf+i))=='\n')
                   {
@@ -940,18 +949,19 @@ int BPT::del(string one_key) // 已经确保one_key存在
                      cur_node->key_num++;
                      l_brother->key_num--;
                      update(fa_node, now_node, cur_node->key.front());
-                     ret = buffer->Write(bpt_file->fd, cur_node->parent, 0, fa_node, sizeof(*fa_node));
-                     if(ret==-1) return -1;
-                     ret = buffer->Write(bpt_file->fd, now_node, 0, cur_node, sizeof(*cur_node));
-                     if(ret==-1) return -1;
-                     ret = buffer->Write(bpt_file->fd, cur_node->pre_leaf, 0, l_brother, sizeof(*l_brother));
-                     if(ret==-1) return -1;
+                     char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                     buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                     delete [] buf;
+                     buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+                     buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+                     delete [] buf;
+                     buf = data_convert->reverse_parse_bpt_node(l_brother, &len);
+                     buffer->Write(bpt_file->fd, cur_node->pre_leaf, 0, buf, len);
+                     delete [] buf;
                      return 0;
                   }
                   BPT_Node *r_brother;
-                  ret = buffer->Read(bpt_file->fd, cur_node->next_leaf, 0, &buf);
-                  if(ret==-1) return -1;
-                  size_t len;
+                  buffer->Read(bpt_file->fd, cur_node->next_leaf, 0, &buf);
                   for(int i = 0; i < Block_Size; i++)
                   if((*(buf+i))=='\n')
                   {
@@ -968,12 +978,15 @@ int BPT::del(string one_key) // 已经确保one_key存在
                      cur_node->key_num++;
                      r_brother->key_num--;
                      update(fa_node, cur_node->next_leaf, r_brother->key.front());
-                     ret = buffer->Write(bpt_file->fd, cur_node->parent, 0, fa_node, sizeof(*fa_node));
-                     if(ret==-1) return -1;
-                     ret = buffer->Write(bpt_file->fd, now_node, 0, cur_node, sizeof(*cur_node));
-                     if(ret==-1) return -1;
-                     ret = buffer->Write(bpt_file->fd, cur_node->next_leaf, 0, r_brother, sizeof(*r_brother));
-                     if(ret==-1) return -1;
+                     char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                     buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                     delete [] buf;
+                     buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+                     buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+                     delete [] buf;
+                     buf = data_convert->reverse_parse_bpt_node(r_brother, &len);
+                     buffer->Write(bpt_file->fd, cur_node->next_leaf, 0, buf, len);
+                     delete [] buf;
                      return 0;
                   }
                   cur_id = 0;
@@ -989,9 +1002,7 @@ int BPT::del(string one_key) // 已经确保one_key存在
                   BPT_Node *to_change_node;
                   if(r_brother->next_leaf!=-1)
                   {
-                     ret = buffer->Read(bpt_file->fd, r_brother->next_leaf, 0, &buf);
-                     if(ret==-1) return -1;
-                     size_t len;
+                     buffer->Read(bpt_file->fd, r_brother->next_leaf, 0, &buf);
                      for(int i = 0; i < Block_Size; i++)
                      if((*(buf+i))=='\n')
                      {
@@ -1002,22 +1013,24 @@ int BPT::del(string one_key) // 已经确保one_key存在
                      to_change_node->pre_leaf = now_node;
                   }
                   del_key_and_child(fa_node, cur_node->next_leaf);
-                  ret = buffer->Write(bpt_file->fd, cur_node->parent, 0, fa_node, sizeof(*fa_node));
-                  if(ret==-1) return -1;
-                  ret = buffer->Write(bpt_file->fd, now_node, 0, cur_node, sizeof(*cur_node));
-                  if(ret==-1) return -1;
+                  char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                  buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                  delete [] buf;
+                  buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+                  buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+                  delete [] buf;
                   if(r_brother->next_leaf!=-1)
                   {
-                     ret = buffer->Write(bpt_file->fd, r_brother->next_leaf, 0, to_change_node, sizeof(*to_change_node));
-                     if(ret==-1) return -1;
+                     buf = data_convert->reverse_parse_bpt_node(to_change_node, &len);
+                     buffer->Write(bpt_file->fd, r_brother->next_leaf, 0, buf, len);
+                     delete [] buf;
                   }
              }
           }
           else
           { 
              BPT_Node *fa_node = nullptr;
-             ret = buffer->Read(bpt_file->fd, cur_node->parent, 0, &buf);
-             if(ret==-1) return -1;
+             buffer->Read(bpt_file->fd, cur_node->parent, 0, &buf);
              size_t len;
              for(int i = 0; i < Block_Size; i++)
              if((*(buf+i))=='\n')
@@ -1034,9 +1047,7 @@ int BPT::del(string one_key) // 已经确保one_key存在
              if(now_node!=fa_node->child.front())
              {
                 it--;
-                ret = buffer->Read(bpt_file->fd, (*it), 0, &buf);
-                if(ret==-1) return -1;
-                size_t len;
+                buffer->Read(bpt_file->fd, (*it), 0, &buf);
                 for(int i = 0; i < Block_Size; i++)
                 if((*(buf+i))=='\n')
                 {
@@ -1047,12 +1058,15 @@ int BPT::del(string one_key) // 已经确保one_key存在
                 if(l_brother->key_num>min_key_num)
                 {
                    update_l(fa_node, l_brother, cur_node, (*it));
-                   ret = buffer->Write(bpt_file->fd, cur_node->parent, 0, fa_node, sizeof(*fa_node));
-                   if(ret==-1) return -1;
-                   ret = buffer->Write(bpt_file->fd, now_node, 0, cur_node, sizeof(*cur_node));
-                   if(ret==-1) return -1;
-                   ret = buffer->Write(bpt_file->fd, (*it), 0, l_brother, sizeof(*l_brother));
-                   if(ret==-1) return -1;
+                   char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                   buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                   delete [] buf;
+                   buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+                   buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+                   delete [] buf;
+                   buf = data_convert->reverse_parse_bpt_node(l_brother, &len);
+                   buffer->Write(bpt_file->fd, (*it), 0, buf, len);
+                   delete [] buf;
                    return 0;
                 }
                 it++;
@@ -1060,9 +1074,7 @@ int BPT::del(string one_key) // 已经确保one_key存在
              if(now_node!=fa_node->child.back())
              {
                 it++;
-                ret = buffer->Read(bpt_file->fd, (*it), 0, &buf);
-                if(ret==-1) return -1;
-                size_t len;
+                buffer->Read(bpt_file->fd, (*it), 0, &buf);
                 for(int i = 0; i < Block_Size; i++)
                 if((*(buf+i))=='\n')
                 {
@@ -1073,12 +1085,15 @@ int BPT::del(string one_key) // 已经确保one_key存在
                 if(r_brother->key_num>min_key_num)
                 {
                    update_r(fa_node, r_brother, cur_node, (*it));
-                   ret = buffer->Write(bpt_file->fd, cur_node->parent, 0, fa_node, sizeof(*fa_node));
-                   if(ret==-1) return -1;
-                   ret = buffer->Write(bpt_file->fd, now_node, 0, cur_node, sizeof(*cur_node));
-                   if(ret==-1) return -1;
-                   ret = buffer->Write(bpt_file->fd, (*it), 0, r_brother, sizeof(*r_brother));
-                   if(ret==-1) return -1;
+                   char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                   buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                   delete [] buf;
+                   buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+                   buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+                   delete [] buf;
+                   buf = data_convert->reverse_parse_bpt_node(r_brother, &len);
+                   buffer->Write(bpt_file->fd, (*it), 0, buf, len);
+                   delete [] buf;
                    return 0;
                 }
                 it--;
@@ -1087,24 +1102,28 @@ int BPT::del(string one_key) // 已经确保one_key存在
              {
                 it--;
                 merge_l(fa_node, l_brother, cur_node, (*it));
-                ret = buffer->Write(bpt_file->fd, cur_node->parent, 0, fa_node, sizeof(*fa_node));
-                if(ret==-1) return -1;
-                ret = buffer->Write(bpt_file->fd, now_node, 0, cur_node, sizeof(*cur_node));
-                if(ret==-1) return -1;
+                char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                delete [] buf;
+                buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+                buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+                delete [] buf;
              }
              else 
              {
                 it++;
                 merge_r(fa_node, r_brother, cur_node, (*it));
-                ret = buffer->Write(bpt_file->fd, (*it), 0, r_brother, sizeof(*r_brother));
-                if(ret==-1) return -1;
-                ret = buffer->Write(bpt_file->fd, cur_node->parent, 0, fa_node, sizeof(*fa_node));
-                if(ret==-1) return -1;
+                char *buf = data_convert->reverse_parse_bpt_node(r_brother, &len);
+                buffer->Write(bpt_file->fd, (*it), 0, buf, len);
+                delete [] buf;
+                buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                delete [] buf;
              }
           }  
           now_node = cur_node->parent;
-          ret = buffer->Read(bpt_file->fd, now_node, 0, &buf);
-          if(ret==-1) return -1;
+          buffer->Read(bpt_file->fd, now_node, 0, &buf);
+          
           size_t len;
           for(int i = 0; i < Block_Size; i++)
           if((*(buf+i))=='\n')
@@ -1118,8 +1137,7 @@ int BPT::del(string one_key) // 已经确保one_key存在
     {
        root = cur_node->child.front();
        BPT_Node *new_root;
-       ret = buffer->Read(bpt_file->fd, root, 0, &buf);
-       if(ret==-1) return -1;
+       buffer->Read(bpt_file->fd, root, 0, &buf);
        size_t len;
        for(int i = 0; i < Block_Size; i++)
        if((*(buf+i))=='\n')
@@ -1129,8 +1147,9 @@ int BPT::del(string one_key) // 已经确保one_key存在
        }
        new_root = data_convert->parse_bpt_node(buf, len);
        new_root->parent = -1;
-       ret = buffer->Write(bpt_file->fd, root, 0, new_root, sizeof(*new_root));
-       if(ret==-1) return -1;
+       char *buf = data_convert->reverse_parse_bpt_node(new_root, &len);
+       buffer->Write(bpt_file->fd, root, 0, buf, len);
+       delete [] buf;
        return 0;
     }
     return 0;
@@ -1143,8 +1162,8 @@ leaf_node BPT::find(string des_key) const
           int cur_id;
           int insert_id;
           char *buf;
-          int ret = buffer->Read(bpt_file->fd, root, 0, &buf);
-          if(ret==-1) return -1;
+          buffer->Read(bpt_file->fd, root, 0, &buf);
+          
           size_t len;
           for(int i = 0; i < Block_Size; i++)
           if((*(buf+i))=='\n')
@@ -1168,8 +1187,8 @@ leaf_node BPT::find(string des_key) const
                     if(insert_id==cur_id) 
                     {
                        now_node = (*it);
-                       ret = buffer->Read(bpt_file->fd, now_node, 0, &buf);
-                       if(ret==-1) return -1;
+                       buffer->Read(bpt_file->fd, now_node, 0, &buf);
+                       
                        size_t len;
                        for(int i = 0; i < Block_Size; i++)
                        if((*(buf+i))=='\n')
@@ -1190,8 +1209,7 @@ Record * BPT::find_equal(string des_key) const
          if(leaf==-1) return nullptr;
          BPT_Node *cur_leaf;
          char *buf;
-         int ret = buffer->Read(bpt_file->fd, leaf, 0, &buf);
-         if(ret==-1) return nullptr;
+         buffer->Read(bpt_file->fd, leaf, 0, &buf);
          size_t len;
          for(int i = 0; i < Block_Size; i++)
          if((*(buf+i))=='\n')
@@ -1218,8 +1236,7 @@ Record * BPT::find_equal(string des_key) const
              if(insert_id==cur_id)
              {
                 Record *des_data;
-                ret = buffer->Read(table_file->fd, (*it).offset_file, (*it).offset_block, &buf);
-                if(ret==-1) return nullptr;
+                buffer->Read(table_file->fd, (*it).offset_file, (*it).offset_block, &buf);
                 size_t len;
                 for(int i = 0; i < Block_Size; i++)
                 if((*(buf+i))=='\n')
@@ -1240,8 +1257,8 @@ leaf_node BPT::find_leftest() const
           node_pointer now_node = root;
           BPT_Node *cur_node;
           char *buf;
-          int ret = buffer->Read(bpt_file->fd, root, 0, &buf);
-          if(ret==-1) return -1;
+          buffer->Read(bpt_file->fd, root, 0, &buf);
+          
           size_t len;
           for(int i = 0; i < Block_Size; i++)
           if((*(buf+i))=='\n')
@@ -1254,8 +1271,8 @@ leaf_node BPT::find_leftest() const
           {
                 if(cur_node->is_leaf==true) return now_node;
                 now_node = cur_node->child.front();
-                ret = buffer->Read(bpt_file->fd, now_node, 0, &buf);
-                if(ret==-1) return -1;
+                buffer->Read(bpt_file->fd, now_node, 0, &buf);
+                
                 size_t len;
                 for(int i = 0; i < Block_Size; i++)
                 if((*(buf+i))=='\n')
@@ -1273,8 +1290,7 @@ Record_Set * BPT::find_not_equal(string des_key) const
              leaf_node now_leaf = leftest_leaf;
              BPT_Node *cur_leaf;
              char *buf;
-             int ret = buffer->Read(bpt_file->fd, leftest_leaf, 0, &buf);
-             if(ret==-1) return nullptr;
+             buffer->Read(bpt_file->fd, leftest_leaf, 0, &buf);
              size_t len;
              for(int i = 0; i < Block_Size; i++)
              if((*(buf+i))=='\n')
@@ -1292,8 +1308,7 @@ Record_Set * BPT::find_not_equal(string des_key) const
                    for(; key_it != cur_leaf->key.end(); key_it++, data_it++)
                    {
                        if(equal((*key_it), des_key)) continue;
-                       ret = buffer->Read(table_file->fd, (*data_it).offset_file, (*data_it).offset_block, &buf);
-                       if(ret==-1) return nullptr;
+                       buffer->Read(table_file->fd, (*data_it).offset_file, (*data_it).offset_block, &buf);
                        size_t len;
                        for(int i = 0; i < Block_Size; i++)
                        if((*(buf+i))=='\n')
@@ -1310,8 +1325,7 @@ Record_Set * BPT::find_not_equal(string des_key) const
                       if(ans->record.size()==0) return nullptr;
                       return ans;
                    }
-                   ret = buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
-                   if(ret==-1) return nullptr;
+                   buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
                    size_t len;
                    for(int i = 0; i < Block_Size; i++)
                    if((*(buf+i))=='\n')
@@ -1330,8 +1344,7 @@ Record_Set * BPT::find_greater(string des_key) const
              leaf_node now_leaf = des_leaf;
              BPT_Node *cur_leaf;
              char *buf;
-             int ret = buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
-             if(ret==-1) return nullptr; 
+             buffer->Read(bpt_file->fd, now_leaf, 0, &buf); 
              size_t len;
              for(int i = 0; i < Block_Size; i++)
              if((*(buf+i))=='\n')
@@ -1348,8 +1361,7 @@ Record_Set * BPT::find_greater(string des_key) const
                    for(; key_it != cur_leaf->key.end(); key_it++, data_it++)
                    {
                          if(smaller_equal((*key_it), des_key)) continue; 
-                         ret = buffer->Read(table_file->fd, (*data_it).offset_file, (*data_it).offset_block, &buf);
-                         if(ret==-1) return nullptr;
+                         buffer->Read(table_file->fd, (*data_it).offset_file, (*data_it).offset_block, &buf);
                          size_t len;
                          for(int i = 0; i < Block_Size; i++)
                          if((*(buf+i))=='\n')
@@ -1366,8 +1378,7 @@ Record_Set * BPT::find_greater(string des_key) const
                       if(ans->record.size()==0) return nullptr;
                       return ans;
                    }
-                   ret = buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
-                   if(ret==-1) return nullptr;
+                   buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
                    size_t len;
                    for(int i = 0; i < Block_Size; i++)
                    if((*(buf+i))=='\n')
@@ -1386,8 +1397,7 @@ Record_Set * BPT::find_smaller(string des_key) const
              leaf_node now_leaf = des_leaf;
              BPT_Node *cur_leaf;
              char *buf;
-             int ret = buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
-             if(ret==-1) return nullptr;
+             buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
              size_t len;
              for(int i = 0; i < Block_Size; i++)
              if((*(buf+i))=='\n')
@@ -1404,8 +1414,7 @@ Record_Set * BPT::find_smaller(string des_key) const
                    for(; key_it != cur_leaf->key.end(); key_it++, data_it++)
                    {
                          if(greater_equal((*key_it), des_key)) break;  
-                         ret = buffer->Read(table_file->fd, (*data_it).offset_file, (*data_it).offset_block, &buf);
-                         if(ret==-1) return nullptr;
+                         buffer->Read(table_file->fd, (*data_it).offset_file, (*data_it).offset_block, &buf);
                          size_t len;
                          for(int i = 0; i < Block_Size; i++)
                          if((*(buf+i))=='\n')
@@ -1422,8 +1431,7 @@ Record_Set * BPT::find_smaller(string des_key) const
                       if(ans->record.size()==0) return nullptr;
                       return ans;
                    }
-                   ret = buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
-                   if(ret==-1) return nullptr;
+                   buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
                    size_t len;
                    for(int i = 0; i < Block_Size; i++)
                    if((*(buf+i))=='\n')
@@ -1442,8 +1450,7 @@ Record_Set * BPT::find_greater_equal(string des_key) const
              leaf_node now_leaf = des_leaf;
              BPT_Node *cur_leaf;
              char *buf;
-             int ret = buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
-             if(ret==-1) return nullptr;
+             buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
              size_t len;
              for(int i = 0; i < Block_Size; i++)
              if((*(buf+i))=='\n')
@@ -1460,8 +1467,7 @@ Record_Set * BPT::find_greater_equal(string des_key) const
                    for(; key_it != cur_leaf->key.end(); key_it++, data_it++)
                    {
                          if(smaller((*key_it), des_key)) continue; 
-                         ret = buffer->Read(table_file->fd, (*data_it).offset_file, (*data_it).offset_block, &buf);
-                         if(ret==-1) return nullptr;
+                         buffer->Read(table_file->fd, (*data_it).offset_file, (*data_it).offset_block, &buf);
                          size_t len;
                          for(int i = 0; i < Block_Size; i++)
                          if((*(buf+i))=='\n')
@@ -1478,8 +1484,7 @@ Record_Set * BPT::find_greater_equal(string des_key) const
                       if(ans->record.size()==0) return nullptr;
                       return ans;
                    }
-                   ret = buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
-                   if(ret==-1) return nullptr;
+                   buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
                    size_t len;
                    for(int i = 0; i < Block_Size; i++)
                    if((*(buf+i))=='\n')
@@ -1499,7 +1504,7 @@ Record_Set * BPT::find_smaller_equal(string des_key) const
              Record_Set *ans = new Record_Set;
              leaf_node now_leaf = des_leaf;
              BPT_Node *cur_leaf;
-             int ret = buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
+             buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
              size_t len;
              for(int i = 0; i < Block_Size; i++)
              if((*(buf+i))=='\n')
@@ -1508,7 +1513,6 @@ Record_Set * BPT::find_smaller_equal(string des_key) const
                  break;
              }
              cur_leaf = data_convert->parse_bpt_node(buf, len);
-             if(ret==-1) return nullptr;
              Record *tmp_record;
              while(true)
              {
@@ -1517,8 +1521,7 @@ Record_Set * BPT::find_smaller_equal(string des_key) const
                    for(; key_it != cur_leaf->key.end(); key_it++, data_it++)
                    {
                          if(greater((*key_it), des_key)) break;
-                         ret = buffer->Read(table_file->fd, (*data_it).offset_file, (*data_it).offset_block, &buf);
-                         if(ret==-1) return nullptr;
+                         buffer->Read(table_file->fd, (*data_it).offset_file, (*data_it).offset_block, &buf);
                          size_t len;
                          for(int i = 0; i < Block_Size; i++)
                          if((*(buf+i))=='\n')
@@ -1535,8 +1538,7 @@ Record_Set * BPT::find_smaller_equal(string des_key) const
                       if(ans->record.size()==0) return nullptr;
                       return ans;
                    }
-                   ret = buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
-                   if(ret==-1) return nullptr;
+                   buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
                    size_t len;
                    for(int i = 0; i < Block_Size; i++)
                    if((*(buf+i))=='\n')
@@ -1554,9 +1556,8 @@ Record_Set * BPT::find_all() const
              if(leftest_leaf==-1) return nullptr;
              char *buf;
              leaf_node now_leaf = leftest_leaf;
-             BPT_Node *cur_leaf;
-             int ret = buffer->Read(bpt_file->fd, leftest_leaf, 0, &buf);
-             if(ret==-1) return nullptr;
+             BPT_Node *cur_leaf = nullptr;
+             buffer->Read(bpt_file->fd, leftest_leaf, 0, &buf);
              size_t len;
              for(int i = 0; i < Block_Size; i++)
              if((*(buf+i))=='\n')
@@ -1566,34 +1567,34 @@ Record_Set * BPT::find_all() const
              }
              cur_leaf = data_convert->parse_bpt_node(buf, len);
              Record_Set *ans = new Record_Set;
-             Record *tmp_record = new Record;
+             Record *tmp_record = nullptr;
              while(true)
              {
                    auto data_it = cur_leaf->data.begin();
                    auto key_it = cur_leaf->key.begin();
                    for(; key_it != cur_leaf->key.end(); key_it++, data_it++)
                    {   
-                       ret = buffer->Read(table_file->fd, (*data_it).offset_file, (*data_it).offset_block, &buf);
-                       if(ret==-1) return nullptr; 
+                       buffer->Read(table_file->fd, (*data_it).offset_file, (*data_it).offset_block, &buf); 
                        for(int i = 0; i < Block_Size; i++)
                        if((*(buf+i))=='\n')
                        {
-                          memcpy(tmp_record, buf, i);
+                          len = i;
                           break;
                        }
+                       tmp_record = data_convert->parse_record(buf, len);                       
                        ans->record.push_back(*tmp_record);
+                       if(tmp_record!=nullptr) delete tmp_record;
                    }
                    now_leaf = cur_leaf->next_leaf;
                    if(now_leaf==-1) return ans; 
-                   ret = buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
-                   if(ret==-1) return nullptr; 
-                   size_t len;
+                   buffer->Read(bpt_file->fd, now_leaf, 0, &buf);
                    for(int i = 0; i < Block_Size; i++)
                    if((*(buf+i))=='\n')
                    {
                        len = i;
                        break;
                    }
+                   if(cur_leaf!=nullptr) delete cur_leaf;
                    cur_leaf = data_convert->parse_bpt_node(buf, len);
              }
 }

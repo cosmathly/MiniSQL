@@ -1,15 +1,16 @@
 #include "Record_Manager.h"
 #include "API.h"
 #include <sstream>
+extern Data_Convert *data_convert;
 void Record_Manager::delete_one_record(std::string table_name, Record *des_record)
 {
      Attr_Set *attr_set = catalog_file->get_all_index_attr(table_name);
      All_Attr *all_attr = catalog_file->get_all_attr(table_name);
      Attr_Num attr_num = des_record->attr.size();  
-     BPT_Info *bpt_info = new BPT_Info;
+     BPT_Info *bpt_info;
      offset_t offset_file;  
      char *buf;
-     BPT *bpt = new BPT((size_t)4, (BPT_Pointer)0, (data_type)0);
+     BPT *bpt;
      for(int i = 0; i < attr_num; i++)
      {
          bool flag = false;
@@ -21,15 +22,17 @@ void Record_Manager::delete_one_record(std::string table_name, Record *des_recor
          }
          if(flag==false) continue;
          offset_file = 0;
+         size_t len;
          while(offset_file<bpt_info_file->offset_file)
          {
                buffer->Read(bpt_info_file->fd, offset_file, 0, &buf);
                for(int i = 0; i < Block_Size; i++)
-         if((*(buf+i))=='\n')
-         {
-            memcpy(bpt_info, buf, i);
-            break;
-         }
+               if((*(buf+i))=='\n')
+               {
+                  len = i;
+                  break;
+               }
+               bpt_info = data_convert->parse_bpt_info(buf, len);
                offset_file += Block_Size;
                if(bpt_info->is_del==true) continue;
                if(bpt_info->table_name!=table_name) continue;
@@ -40,9 +43,10 @@ void Record_Manager::delete_one_record(std::string table_name, Record *des_recor
          for(int i = 0; i < Block_Size; i++)
          if((*(buf+i))=='\n')
          {
-            memcpy(bpt, buf, i);
+            len = i;
             break;
          }
+         bpt = data_convert->parse_bpt(buf, len);
          bpt->del(des_record->attr[i]);
          bpt->write_bpt_to_file();
      } 
@@ -65,30 +69,33 @@ using namespace std;
 Record_Set * Record_Manager::select_all_record(std::string table_name)
 {
              offset_t offset_file = 0;
-             BPT_Info *bpt_info = new BPT_Info;
+             BPT_Info *bpt_info;
              char *buf;
+             size_t len;
+             BPT *bpt = nullptr;
              while(offset_file<bpt_info_file->offset_file)
              {
+                   if(bpt_info!=nullptr) delete bpt;
                    buffer->Read(bpt_info_file->fd, offset_file, 0, &buf);
                    for(int i = 0; i < Block_Size; i++)
-         if((*(buf+i))=='\n')
-         {
-            memcpy(bpt_info, buf, i);
-            break;
-         }
+                   if((*(buf+i))=='\n')
+                   {
+                      len = i;
+                      break;
+                   }
+                   bpt_info = data_convert->parse_bpt_info(buf, len);
                    offset_file += Block_Size;
                    if(bpt_info->is_del==true) continue;
-                   if(bpt_info->table_name!=table_name) continue;
-                   data_type type = catalog_file->get_data_type(table_name, bpt_info->attr_name);
-                   BPT *bpt = new BPT((size_t)4, (BPT_Pointer)0, (data_type)0);
+                   if(bpt_info->table_name!=table_name) continue; 
                    buffer->Read(bpt_file->fd, bpt_info->BPT, 0, &buf);
                    for(int i = 0; i < Block_Size; i++)
                    if((*(buf+i))=='\n')
                    {
-                      memcpy(bpt, buf, i);
+                      len = i;
                       break;
                    }
-                   return bpt->find_all();
+                   bpt = data_convert->parse_bpt(buf, len);
+                   { Record_Set *record_set = bpt->find_all(); if(bpt!=nullptr) delete bpt; return record_set;} 
              }
              
 }
@@ -171,32 +178,34 @@ Record_Set * Record_Manager::select_part_record(std::string table_name, std::vec
              {
                 Record_Set *all_record;
                 offset_t offset_file = 0;
-                BPT_Info *bpt_info = new BPT_Info;
+                BPT_Info *bpt_info;
                 char *buf;
+                size_t len;
+                BPT *bpt;
                 while(offset_file<bpt_info_file->offset_file)
                 {
                       buffer->Read(bpt_info_file->fd, offset_file, 0, &buf);
                       for(int i = 0; i < Block_Size; i++)
-         if((*(buf+i))=='\n')
-         {
-            memcpy(bpt_info, buf, i);
-            break;
-         }
+                      if((*(buf+i))=='\n')
+                      {
+                         len = i;
+                         break;
+                      }
+                      bpt_info = data_convert->parse_bpt_info(buf, len);
                       offset_file += Block_Size;
                       if(bpt_info->is_del==true) continue;
                       if(bpt_info->table_name!=table_name) continue;
                       break;       
                 }
-                data_type type = catalog_file->get_data_type(table_name, bpt_info->attr_name);
-                BPT *bpt = new BPT((size_t)4, (BPT_Pointer)0, (data_type)0);
                 buffer->Read(bpt_file->fd, bpt_info->BPT, 0, &buf);
                 for(int i = 0; i < Block_Size; i++)
-         if((*(buf+i))=='\n')
-         {
-            memcpy(bpt, buf, i);
-            break;
-         }
-         all_record = bpt->find_all();
+                if((*(buf+i))=='\n')
+                {
+                   len = i;
+                   break;
+                }
+                bpt = data_convert->parse_bpt(buf, len);
+                all_record = bpt->find_all();
                 if(all_record==nullptr) return nullptr;
                 Record_Set *ans = new Record_Set;
                 All_Attr *all_attr = catalog_file->get_all_attr(table_name);
@@ -213,17 +222,17 @@ Record_Set * Record_Manager::select_part_record(std::string table_name, std::vec
                 std::string val = des_condition->val;
                 offset_t offset_file = 0;
                 BPT_Info *bpt_info = nullptr;
+                size_t len;
                 while(offset_file<bpt_info_file->offset_file)
                 {
-                      if(bpt_info==nullptr)
-                      bpt_info = new BPT_Info;
                       buffer->Read(bpt_info_file->fd, offset_file, 0, &buf);
                       for(int i = 0; i < Block_Size; i++)
-         if((*(buf+i))=='\n')
-         {
-            memcpy(bpt_info, buf, i);
-            break;
-         }
+                      if((*(buf+i))=='\n')
+                      {
+                         len = i;
+                         break;
+                      }
+                      bpt_info = data_convert->parse_bpt_info(buf, len);
                       offset_file += Block_Size;
                       if(bpt_info->is_del==true) continue;
                       if(bpt_info->table_name!=table_name) continue;
@@ -235,20 +244,20 @@ Record_Set * Record_Manager::select_part_record(std::string table_name, std::vec
                 Record_Set *maybe_ans;
                 string int_val;
                 string float_val;
-                BPT *float_bpt = new BPT((size_t)4, (BPT_Pointer)0, (data_type)0);
-                BPT *int_bpt = new BPT((size_t)4, (BPT_Pointer)0, (data_type)0);
-                BPT *string_bpt = new BPT((size_t)4, (BPT_Pointer)0, (data_type)0);
+                BPT *float_bpt;
+                BPT *int_bpt;
+                BPT *string_bpt;
                 switch(type)
                 {
                       case Int:
-                      
                       buffer->Read(bpt_file->fd, bpt_info->BPT, 0, &buf);
                       for(int i = 0; i < Block_Size; i++)
-         if((*(buf+i))=='\n')
-         {
-            memcpy(int_bpt, buf, i);
-            break;
-         }
+                      if((*(buf+i))=='\n')
+                      {
+                         len = i;
+                         break;
+                      }
+                      int_bpt = data_convert->parse_bpt(buf, len);
                       int_val = val;
                       if(op=="=") { Record *record = int_bpt->find_equal(int_val);  maybe_ans = new Record_Set; if(record!=nullptr) maybe_ans->record.push_back(*record); }
                       else if(op=="<>") maybe_ans = int_bpt->find_not_equal(int_val);
@@ -258,26 +267,26 @@ Record_Set * Record_Manager::select_part_record(std::string table_name, std::vec
                       else if(op==">=") maybe_ans = int_bpt->find_greater_equal(int_val);
                       break;
                       case Char:
-                      
                       buffer->Read(bpt_file->fd, bpt_info->BPT, 0, &buf);
                       for(int i = 0; i < Block_Size; i++)
-         if((*(buf+i))=='\n')
-         {
-            memcpy(string_bpt, buf, i);
-            break;
-         }
+                      if((*(buf+i))=='\n')
+                      {
+                        len = i;
+                        break;
+                      }
+                      string_bpt = data_convert->parse_bpt(buf, len);
                       if(op=="=") { Record *record = string_bpt->find_equal(val); maybe_ans = new Record_Set; if(record!=nullptr) maybe_ans->record.push_back(*record); }
                       else if(op=="<>") maybe_ans = string_bpt->find_not_equal(val);
                       break;
                       case Float:
-                      
                       buffer->Read(bpt_file->fd, bpt_info->BPT, 0, &buf);
                       for(int i = 0; i < Block_Size; i++)
-         if((*(buf+i))=='\n')
-         {
-            memcpy(float_bpt, buf, i);
-            break;
-         }
+                      if((*(buf+i))=='\n')
+                      {
+                         len = i;
+                         break;
+                      }
+                      float_bpt = data_convert->parse_bpt(buf, len);
                       float_val = val;
                       if(op=="=") { Record *record = float_bpt->find_equal(float_val); maybe_ans = new Record_Set; if(record!=nullptr) maybe_ans->record.push_back(*record); }
                       else if(op=="<>") maybe_ans = float_bpt->find_not_equal(float_val);
@@ -301,18 +310,20 @@ void Record_Manager::insert_one_record(std::string table_name, Record *des_recor
      All_Attr *all_attr = catalog_file->get_all_attr(table_name);
      Attr_Num attr_num = des_record->attr.size();  
      size_t can_use_size = Block_Size-(table_file->cur_pos%Block_Size);
-     size_t len = sizeof(*des_record)+1;
+     size_t len;
+     char *buf = data_convert->reverse_parse_record(des_record, &len);
      if(can_use_size<len) table_file->update(); 
      offset_t off_block = table_file->cur_pos%Block_Size;
      offset_t off_file = table_file->cur_pos-off_block;
-     buffer->Write(table_file->fd, off_file, off_block, des_record, len-1);
+     buffer->Write(table_file->fd, off_file, off_block, buf, len);
+     if(buf!=nullptr) delete [] buf;
      table_file->cur_pos += len;
      data_pointer data_place;
      data_place.offset_block = off_block;
      data_place.offset_file = off_file;
-     BPT_Info *bpt_info = new BPT_Info;
+     BPT_Info *bpt_info = nullptr;
      offset_t offset_file;  
-     char *buf;
+     BPT *bpt = nullptr;
      for(int i = 0; i < attr_num; i++)
      {
          bool flag = false;
@@ -326,28 +337,31 @@ void Record_Manager::insert_one_record(std::string table_name, Record *des_recor
          offset_file = 0;
          while(offset_file<bpt_info_file->offset_file)
          {
+               if(bpt_info!=nullptr) delete bpt_info;
                buffer->Read(bpt_info_file->fd, offset_file, 0, &buf);
                offset_file += Block_Size;
                for(int i = 0; i < Block_Size; i++)
-         if((*(buf+i))=='\n')
-         {
-            memcpy(bpt_info, buf, i);
-            break;
-         }
+               if((*(buf+i))=='\n')
+               {
+                  len = i;
+                  break;
+               }
+               bpt_info = data_convert->parse_bpt_info(buf, len);
                if(bpt_info->is_del==true) continue;
                if(bpt_info->table_name!=table_name) continue;
                if(bpt_info->attr_name!=all_attr->attr_info[i].attr_name) continue;
                break;
-         }
-         BPT *bpt = new BPT((size_t)4, (BPT_Pointer)0, (data_type)0);
+         } 
          buffer->Read(bpt_file->fd, bpt_info->BPT, 0, &buf);
          for(int i = 0; i < Block_Size; i++)
          if((*(buf+i))=='\n')
          {
-            memcpy(bpt, buf, i);
+            len = i;
             break;
          }
+         bpt = data_convert->parse_bpt(buf, len);
          bpt->insert(des_record->attr[i], data_place);
          bpt->write_bpt_to_file();
+         if(bpt!=nullptr) delete bpt;
      } 
 }

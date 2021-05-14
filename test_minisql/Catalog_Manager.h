@@ -101,7 +101,7 @@ class Catalog_File
          Table_Info_File table_info;
          Attr_Info_File attr_info;
          Index_Info_File index_info;
-         Catalog_File() : table_info(), attr_info(), index_info() { }
+         Catalog_File() { }
          ~Catalog_File() { }
          void drop_table(std::string table_name);
          void drop_attr(std::string table_name);

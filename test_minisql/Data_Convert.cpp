@@ -1,16 +1,16 @@
 #include "Data_Convert.h"
 void Data_Convert::parse_into_string(vector<string> & all_str, char *parse_start_place, size_t len)
 {                 
-                  int pos = 0;
-                  string tmp;
-                  while(true)
-                  {  
-                       while(pos<len&&parse_start_place[pos]==' ') pos++;
-                       if(pos==len) break;
-                       while(pos<len&&parse_start_place[pos]!=' ') tmp += parse_start_place[pos++];
-                       all_str.push_back(tmp);
-                       tmp.clear();
-                  }
+                   int pos = 0;
+                   string tmp;
+                   while(true)
+                   {  
+                        while(pos<len&&parse_start_place[pos]==' ') pos++;
+                        if(pos==len) break;
+                        while(pos<len&&parse_start_place[pos]!=' ') tmp += parse_start_place[pos++];
+                        all_str.push_back(tmp);
+                        tmp.clear();
+                   }
 }
 BPT_Node * Data_Convert::parse_bpt_node(char *parse_start_place, size_t len)
 {
@@ -76,6 +76,8 @@ BPT_Node * Data_Convert::parse_bpt_node(char *parse_start_place, size_t len)
                   new_node->data.push_back(data_pos);
               }
            }
+           delete ss;
+           all_str.clear();
            return new_node;
 }
 BPT * Data_Convert::parse_bpt(char *parse_start_place, size_t len)
@@ -115,6 +117,8 @@ BPT * Data_Convert::parse_bpt(char *parse_start_place, size_t len)
       (*ss) << all_str[3];
       (*ss) >> bpt;
       new_bpt = new BPT(root, m, real_type, bpt);
+      all_str.clear();
+      delete ss;
       return new_bpt;
 }
 Record * Data_Convert::parse_record(char *parse_start_place, size_t len)
@@ -138,6 +142,8 @@ Table_Info * Data_Convert::parse_table_info(char *parse_start_place, size_t len)
              (*ss) << all_str[2];
              (*ss) >> table_info->attr_num;
              table_info->primary_key = all_str[3];
+             delete ss;
+             all_str.clear();
              return table_info;
 }
 Attr_Info * Data_Convert::parse_attr_info(char *parse_start_place, size_t len)
@@ -185,6 +191,8 @@ Attr_Info * Data_Convert::parse_attr_info(char *parse_start_place, size_t len)
                  (*ss) >> tmp_info.if_unique;
                  attr_info->attr.push_back(tmp_info); 
             }
+            delete ss;
+            all_str.clear();
             return attr_info;
 }            
 Index_Info * Data_Convert::parse_index_info(char *parse_start_place, size_t len)
@@ -200,6 +208,7 @@ Index_Info * Data_Convert::parse_index_info(char *parse_start_place, size_t len)
              index_info->table_name = all_str[2];
              index_info->attr_name = all_str[3];
              delete ss;
+             all_str.clear();
              return index_info;
 }
 BPT_Info * Data_Convert::parse_bpt_info(char *parse_start_place, size_t len)
@@ -217,6 +226,8 @@ BPT_Info * Data_Convert::parse_bpt_info(char *parse_start_place, size_t len)
            ss = new stringstream;
            (*ss) << all_str[3];
            (*ss) >> bpt_info->BPT;
+           delete ss;
+           all_str.clear();
            return bpt_info;
 } 
 void Data_Convert::to_char(char *st_pos, string *str)
@@ -227,7 +238,15 @@ void Data_Convert::to_char(char *st_pos, string *str)
 }
 char * Data_Convert::reverse_parse_bpt_node(BPT_Node *bpt_node, size_t *len)
 {
-       char *buf = new char[Block_Size];
+       char *buf;
+       try
+       { 
+           buf = new char[Block_Size/4];
+       }
+       catch(std::bad_alloc)
+       {
+           buf = new char[Block_Size/5];
+       }
        int cnt_byte = 0;
        string *str;
        stringstream *ss;
@@ -330,12 +349,22 @@ char * Data_Convert::reverse_parse_bpt_node(BPT_Node *bpt_node, size_t *len)
           }
           (*(buf+cnt_byte-1)) = '\n';
        }
+       delete ss;
+       delete str;
        (*len) = cnt_byte;
        return buf;
 }
 char * Data_Convert::reverse_parse_bpt(BPT *bpt, size_t *len)
 {
-       char *buf = new char[Block_Size/40];
+       char *buf;
+       try
+       { 
+           buf = new char[Block_Size/80];
+       }
+       catch(std::bad_alloc)
+       {
+           buf = new char[Block_Size/100];
+       }
        int cnt_byte = 0;
        string *str;
        stringstream *ss;
@@ -386,11 +415,21 @@ char * Data_Convert::reverse_parse_bpt(BPT *bpt, size_t *len)
        (*(buf+cnt_byte)) = '\n';
        cnt_byte++;
        (*len) = cnt_byte;
+       delete ss;
+       delete str;
        return buf;
 }
 char * Data_Convert::reverse_parse_record(Record *record, size_t *len)
 {
-       char *buf = new char[Block_Size];
+       char *buf;
+       try
+       { 
+           buf = new char[Block_Size/40];
+       }
+       catch(std::bad_alloc)
+       {
+           buf = new char[Block_Size/50];
+       }
        int cnt_byte = 0;
        for(auto it = record->attr.begin(); it != record->attr.end(); it++)
        {
@@ -405,7 +444,15 @@ char * Data_Convert::reverse_parse_record(Record *record, size_t *len)
 }
 char * Data_Convert::reverse_parse_table_info(Table_Info *table_info, size_t *len)
 {
-       char *buf = new char[Block_Size/20];
+       char *buf;
+       try
+       { 
+            buf = new char[Block_Size/100];
+       }
+       catch(std::bad_alloc)
+       {
+            buf = new char[Block_Size/110];
+       }
        int cnt_byte = 0;
        string *str;
        stringstream *ss;
@@ -436,16 +483,24 @@ char * Data_Convert::reverse_parse_table_info(Table_Info *table_info, size_t *le
        (*(buf+cnt_byte)) = '\n';
        cnt_byte++;
        (*len) = cnt_byte;
+       delete ss;
+       delete str;
        return buf;  
 }
 char * Data_Convert::reverse_parse_attr_info(Attr_Info *attr_info, size_t *len)
 {
-       char *buf = new char[Block_Size];
+       char *buf;
+       try
+       {
+            buf = new char[Block_Size/10];
+       }
+       catch(std::bad_alloc)
+       {
+            buf = new char[Block_Size/15];
+       }
        int cnt_byte = 0;
        string *str;
        stringstream *ss;
-       delete str;
-       delete ss;
        ss = new stringstream;
        str = new string;
        (*ss) << attr_info->if_del;
@@ -506,11 +561,21 @@ char * Data_Convert::reverse_parse_attr_info(Attr_Info *attr_info, size_t *len)
        }
        (*(buf+cnt_byte-1)) = '\n';
        (*len) = cnt_byte;
+       delete ss;
+       delete str;
        return buf;
 }    
 char * Data_Convert::reverse_parse_index_info(Index_Info *index_info, size_t *len)
 {
-                char *buf = new char[Block_Size/20];
+                char *buf;
+                try
+                {
+                    buf = new char[Block_Size/80];
+                }
+                catch(std::bad_alloc)
+                {
+                    buf = new char[Block_Size/100];
+                }
                 int cnt_byte = 0;
                 stringstream *ss;
                 string *str;
@@ -541,7 +606,15 @@ char * Data_Convert::reverse_parse_index_info(Index_Info *index_info, size_t *le
 }    
 char * Data_Convert::reverse_parse_bpt_info(BPT_Info *bpt_info, size_t *len)
 {
-                char *buf = new char[Block_Size/20];
+                char *buf;
+                try 
+                {
+                      buf = new char[Block_Size/80];
+                }
+                catch(std::bad_alloc)
+                {
+                      buf = new char[Block_Size/100]; 
+                }
                 int cnt_byte = 0;
                 stringstream *ss;
                 string *str;  

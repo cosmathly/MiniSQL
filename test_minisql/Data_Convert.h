@@ -5,9 +5,15 @@
 #include "Catalog_Manager.h"
 #include <string>
 using namespace std;
+class BPT_Node;
+class BPT;
+class Record;
+class BPT_Info;
 class Data_Convert
 {
       public:
+         Data_Convert() { }
+         ~Data_Convert() { }
          void parse_into_string(vector<string> & all_str, char *parse_start_place, size_t len);
          BPT_Node * parse_bpt_node(char *parse_start_place, size_t len); 
          BPT * parse_bpt(char *parse_start_place, size_t len);
