@@ -79,19 +79,19 @@ bool Catalog_File::check_index_if_exist(std::string index_name)
 bool Catalog_File::check_attr_if_exist(std::string table_name, std::string attr_name) 
 {
      offset_t offset_file = 0;
-     int ret;
-     Attr_Info *cur_attr_info;
-     char *buf;
+     Attr_Info *cur_attr_info = nullptr;
+     char *buf = nullptr;
+     size_t len;
      while(offset_file<attr_info.offset_file)
      {         
            buffer->Read(attr_info.fd, offset_file, 0, &buf);
-           size_t len;
            for(int i = 0; i < Block_Size; i++)
            if((*(buf+i))=='\n')
            {
-             (cur_attr_info, buf, i);
+             len = i;
              break;
            }
+           if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; }
            cur_attr_info = data_convert->parse_attr_info(buf, len);
            offset_file += Block_Size;
            if(cur_attr_info->if_del==true) continue;
@@ -105,12 +105,12 @@ bool Catalog_File::check_attr_if_exist(std::string table_name, std::string attr_
 primary_key Catalog_File::find_primary_key(std::string table_name) 
 {
             offset_t offset_file = 0;
-            Table_Info *cur_table_info;
-            char *buf;
+            Table_Info *cur_table_info = nullptr;
+            char *buf = nullptr;
+            size_t len;
             while(offset_file<table_info.offset_file)
             {    
                   buffer->Read(table_info.fd, offset_file, 0, &buf);
-                  size_t len;
                   for(int i = 0; i < Block_Size; i++)
                   if((*(buf+i))=='\n')
                   {
@@ -121,17 +121,18 @@ primary_key Catalog_File::find_primary_key(std::string table_name)
                   offset_file += Block_Size;
                   if(cur_table_info->if_del==true) continue;
                   if(cur_table_info->table_name!=table_name) continue;
-                  return cur_table_info->primary_key;
+                  { string ans = cur_table_info->primary_key; delete cur_table_info; cur_table_info = nullptr; return ans; }
             }
+            
 }
 bool Catalog_File::check_table_attr_if_exist(std::string table_name, std::string attr_name) 
 {
      primary_key key_name = find_primary_key(table_name);
      if(key_name==attr_name) return true;
      offset_t offset_file = 0;
-     Index_Info *cur_index_info ;
+     Index_Info *cur_index_info = nullptr;
      int ret;
-     char *buf;
+     char *buf = nullptr;
      while(offset_file<index_info.offset_file)
      { 
            buffer->Read(index_info.fd, offset_file, 0, &buf);
@@ -142,11 +143,12 @@ bool Catalog_File::check_table_attr_if_exist(std::string table_name, std::string
               len = i;
               break;
            }
+           if(cur_index_info!=nullptr) { delete cur_index_info; cur_index_info = nullptr; }
            cur_index_info = data_convert->parse_index_info(buf, len);
            offset_file += Block_Size;
            if(cur_index_info->if_del==true) continue;
            if(cur_index_info->table_name!=table_name) continue;
-           if(cur_index_info->attr_name==attr_name) return true;
+           if(cur_index_info->attr_name==attr_name) { if(cur_index_info!=nullptr) { delete cur_index_info; cur_index_info = nullptr; } return true; }
      }
      return false;
 }
@@ -155,7 +157,7 @@ void Catalog_File::insert_table_info(Table_Info *src_table_info)
      size_t len;
      char *buf = data_convert->reverse_parse_table_info(src_table_info, &len);
      buffer->Write(table_info.fd, table_info.offset_file, 0, buf, len);
-     delete [] buf;
+     if(buf!=nullptr) { delete [] buf; buf = nullptr; } 
      table_info.offset_file += Block_Size;
 }
 void Catalog_File::insert_attr_info(Attr_Info *src_attr_info)
@@ -163,7 +165,7 @@ void Catalog_File::insert_attr_info(Attr_Info *src_attr_info)
      size_t len;
      char *buf = data_convert->reverse_parse_attr_info(src_attr_info, &len);
      buffer->Write(attr_info.fd, attr_info.offset_file, 0, buf, len);
-     delete [] buf;
+     if(buf!=nullptr) { delete [] buf; buf = nullptr; }
      attr_info.offset_file += Block_Size;
 }
 void Catalog_File::insert_index_info(Index_Info *src_index_info)
@@ -171,7 +173,7 @@ void Catalog_File::insert_index_info(Index_Info *src_index_info)
      size_t len;
      char *buf = data_convert->reverse_parse_index_info(src_index_info, &len);
      buffer->Write(index_info.fd, index_info.offset_file, 0, buf, len);
-     delete [] buf;
+     if(buf!=nullptr) { delete [] buf; buf = nullptr; }
      index_info.offset_file += Block_Size;
 }
 bool Catalog_File::check_attr_if_unique(std::string table_name, std::string attr_name) 
@@ -179,8 +181,8 @@ bool Catalog_File::check_attr_if_unique(std::string table_name, std::string attr
      offset_t offset_file = 0;
      primary_key key_name = find_primary_key(table_name);
      if(attr_name==key_name) return true;
-     Attr_Info *cur_attr_info ;
-     char *buf;
+     Attr_Info *cur_attr_info = nullptr;
+     char *buf = nullptr;
      while(offset_file<attr_info.offset_file)
      {       
            buffer->Read(attr_info.fd, offset_file, 0, &buf);
@@ -191,6 +193,7 @@ bool Catalog_File::check_attr_if_unique(std::string table_name, std::string attr
               len = i;
               break;
            }
+           if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; }
            cur_attr_info = data_convert->parse_attr_info(buf, len);
            offset_file += Block_Size;
            if(cur_attr_info==nullptr) continue;
@@ -199,7 +202,8 @@ bool Catalog_File::check_attr_if_unique(std::string table_name, std::string attr
            for(auto it = cur_attr_info->attr.begin(); it != cur_attr_info->attr.end(); it++)
            {
                if((*it).attr_name!=attr_name) continue;
-               if((*it).if_unique==true) return true;
+               if((*it).if_unique==true) { if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; } return true; }
+               if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; }
                return false; 
            }
            return false;
@@ -209,8 +213,8 @@ bool Catalog_File::check_attr_if_unique(std::string table_name, std::string attr
 size_t Catalog_File::get_attr_size(std::string table_name, std::string attr_name) 
 {
             offset_t offset_file = 0;
-            Attr_Info *cur_attr_info ;
-            char *buf;
+            Attr_Info *cur_attr_info = nullptr;
+            char *buf = nullptr;
             while(offset_file<attr_info.offset_file)
             {        
                   buffer->Read(attr_info.fd, offset_file, 0, &buf);
@@ -221,6 +225,7 @@ size_t Catalog_File::get_attr_size(std::string table_name, std::string attr_name
                      len = i;
                      break;
                   }
+                  if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; }
                   cur_attr_info = data_convert->parse_attr_info(buf, len);
                   offset_file += Block_Size;
                   if(cur_attr_info->if_del==true) continue;
@@ -228,15 +233,16 @@ size_t Catalog_File::get_attr_size(std::string table_name, std::string attr_name
                   for(auto it = cur_attr_info->attr.begin(); it != cur_attr_info->attr.end(); it++)
                   {
                         if((*it).attr_name!=attr_name) continue;
-                        return (*it).data_size;
+                        if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; }
+                        return (*it).data_size; 
                   }
             }
 }
 data_type Catalog_File::get_data_type(std::string table_name, std::string attr_name) 
 {
             offset_t offset_file = 0;
-            Attr_Info *cur_attr_info ;
-            char *buf;
+            Attr_Info *cur_attr_info = nullptr;
+            char *buf = nullptr;
             while(offset_file<attr_info.offset_file)
             {      
                   buffer->Read(attr_info.fd, offset_file, 0, &buf);
@@ -247,6 +253,7 @@ data_type Catalog_File::get_data_type(std::string table_name, std::string attr_n
                         len = i;
                         break;
                   }
+                  if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; }
                   cur_attr_info = data_convert->parse_attr_info(buf, len);
                   offset_file += Block_Size;
                   if(cur_attr_info->if_del==true) continue;
@@ -254,6 +261,7 @@ data_type Catalog_File::get_data_type(std::string table_name, std::string attr_n
                   for(auto it = cur_attr_info->attr.begin(); it != cur_attr_info->attr.end(); it++)
                   {
                         if((*it).attr_name!=attr_name) continue;
+                        if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; }
                         return (*it).type;
                   }
             }
@@ -261,8 +269,8 @@ data_type Catalog_File::get_data_type(std::string table_name, std::string attr_n
 std::string Catalog_File::get_table_name(std::string index_name) 
 { 
             offset_t offset_file = 0;
-            Index_Info *cur_index_info ;
-            char *buf;
+            Index_Info *cur_index_info = nullptr;
+            char *buf = nullptr;
             while(offset_file<index_info.offset_file)
             {   
                   buffer->Read(index_info.fd, offset_file, 0, &buf);
@@ -273,6 +281,7 @@ std::string Catalog_File::get_table_name(std::string index_name)
                         len = i;
                         break;
                   }
+                  if(cur_index_info!=nullptr) { delete cur_index_info; cur_index_info = nullptr; }
                   cur_index_info = data_convert->parse_index_info(buf, len);
                   offset_file += Block_Size;
                   if(cur_index_info->if_del==true) continue;
@@ -282,8 +291,8 @@ std::string Catalog_File::get_table_name(std::string index_name)
 std::string Catalog_File::get_attr_name(std::string index_name) 
 {
             offset_t offset_file = 0;
-            Index_Info *cur_index_info ;
-            char *buf;
+            Index_Info *cur_index_info = nullptr;
+            char *buf = nullptr;
             while(offset_file<index_info.offset_file)
             { 
                   buffer->Read(index_info.fd, offset_file, 0, &buf);
@@ -294,6 +303,7 @@ std::string Catalog_File::get_attr_name(std::string index_name)
                         len = i;
                         break;
                   }
+                  if(cur_index_info!=nullptr) { delete cur_index_info; cur_index_info = nullptr; }
                   cur_index_info = data_convert->parse_index_info(buf, len);
                   offset_file += Block_Size;
                   if(cur_index_info->if_del==true) continue;
@@ -306,18 +316,19 @@ Attr_Set * Catalog_File::get_all_index_attr(std::string table_name)
            Attr_Set * attr_set = new Attr_Set;
            attr_set->attr_name.push_back(key_name);
            offset_t offset_file = 0;
-           Index_Info *cur_index_info ;
-           char *buf;
+           Index_Info *cur_index_info = nullptr;
+           char *buf = nullptr;
+           size_t len;
            while(offset_file<index_info.offset_file)
            { 
                   buffer->Read(index_info.fd, offset_file, 0, &buf);
-                  size_t len;
                   for(int i = 0; i < Block_Size; i++)
                   if((*(buf+i))=='\n')
                   {
                         len = i;
                         break;
                   }
+                  if(cur_index_info!=nullptr) { delete cur_index_info; cur_index_info = nullptr; }
                   cur_index_info = data_convert->parse_index_info(buf, len);
                   offset_file += Block_Size;
                   if(cur_index_info->if_del==true) continue;
@@ -330,8 +341,8 @@ All_Attr * Catalog_File::get_all_attr(std::string table_name)
 {
             All_Attr *all_attr = new All_Attr;
             offset_t offset_file = 0; 
-            Attr_Info *cur_attr_info ;
-            char *buf;
+            Attr_Info *cur_attr_info = nullptr;
+            char *buf = nullptr;
             while(offset_file<attr_info.offset_file)
             { 
                   buffer->Read(attr_info.fd, offset_file, 0, &buf);
@@ -342,6 +353,7 @@ All_Attr * Catalog_File::get_all_attr(std::string table_name)
                         len = i;
                         break;
                   }
+                  if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; }
                   cur_attr_info = data_convert->parse_attr_info(buf, len);
                   offset_file += Block_Size;
                   if(cur_attr_info->if_del==true) continue;
@@ -354,8 +366,8 @@ All_Attr * Catalog_File::get_all_attr(std::string table_name)
 int Catalog_File::find_attr_pos(std::string table_name, std::string attr_name) 
 {
             offset_t offset_file = 0;
-            Attr_Info *cur_attr_info ;
-            char *buf;
+            Attr_Info *cur_attr_info = nullptr;
+            char *buf = nullptr;
             while(offset_file<attr_info.offset_file)
             { 
                   buffer->Read(attr_info.fd, offset_file, 0, &buf);
@@ -366,6 +378,7 @@ int Catalog_File::find_attr_pos(std::string table_name, std::string attr_name)
                         len = i;
                         break;
                   }
+                  if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; }
                   cur_attr_info = data_convert->parse_attr_info(buf, len);
                   offset_file += Block_Size;
                   if(cur_attr_info->if_del==true) continue;
@@ -379,19 +392,20 @@ void Catalog_File::drop_table(std::string table_name)
 {
             
             offset_t offset_file = 0; 
-            Table_Info *cur_table_info ;
+            Table_Info *cur_table_info = nullptr;
             int ret;
-            char *buf;
+            char *buf = nullptr;
+            size_t len;
             while(offset_file<table_info.offset_file)
             {       
-                  buffer->Read(table_info.fd, offset_file, 0, &buf);
-                  size_t len;
+                  buffer->Read(table_info.fd, offset_file, 0, &buf);     
                   for(int i = 0; i < Block_Size; i++)
                   if((*(buf+i))=='\n')
                   {
                         len = i;
                         break;
                   }
+                  if(cur_table_info!=nullptr) { delete cur_table_info; cur_table_info = nullptr; }
                   cur_table_info = data_convert->parse_table_info(buf, len);
                   offset_file += Block_Size;
                   if(cur_table_info==nullptr) continue;
@@ -400,15 +414,15 @@ void Catalog_File::drop_table(std::string table_name)
                   cur_table_info->if_del = true;
                   buf = data_convert->reverse_parse_table_info(cur_table_info, &len);
                   buffer->Write(table_info.fd, offset_file-Block_Size, 0, buf, len);
-                  delete [] buf;
+                  if(buf!=nullptr) { delete [] buf; buf = nullptr;}
             }
 }
 void Catalog_File::drop_attr(std::string table_name)
 {
             offset_t offset_file = 0;
-            Attr_Info *cur_attr_info ;
+            Attr_Info *cur_attr_info = nullptr;
             int ret;
-            char *buf;
+            char *buf = nullptr;
             while(offset_file<attr_info.offset_file)
             {       
                   buffer->Read(attr_info.fd, offset_file, 0, &buf);
@@ -420,6 +434,7 @@ void Catalog_File::drop_attr(std::string table_name)
                      len = i;
                      break;
                   }
+                  if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; }
                   cur_attr_info = data_convert->parse_attr_info(buf, len);
                   offset_file += Block_Size;
                   if(cur_attr_info->if_del==true) continue;
@@ -427,15 +442,15 @@ void Catalog_File::drop_attr(std::string table_name)
                   cur_attr_info->if_del = true;
                   buf = data_convert->reverse_parse_attr_info(cur_attr_info, &len);
                   buffer->Write(attr_info.fd, offset_file-Block_Size, 0, buf,  len);
-                  delete [] buf;
+                  if(buf!=nullptr) { delete [] buf; buf = nullptr; } 
             }
 }
 void Catalog_File::drop_index(std::string index_name)
 {
            offset_t offset_file = 0;
-           Index_Info *cur_index_info ;
+           Index_Info *cur_index_info = nullptr;
            int ret;
-           char *buf;
+           char *buf = nullptr;
            while(offset_file<index_info.offset_file)
            {     
                   buffer->Read(index_info.fd, offset_file, 0, &buf);
@@ -447,6 +462,7 @@ void Catalog_File::drop_index(std::string index_name)
                         len = i;
                         break;
                   }
+                  if(cur_index_info!=nullptr) { delete cur_index_info; cur_index_info = nullptr; }
                   cur_index_info = data_convert->parse_index_info(buf, len);
                   offset_file += Block_Size;
                   if(cur_index_info->if_del==true) continue;
@@ -454,15 +470,15 @@ void Catalog_File::drop_index(std::string index_name)
                   cur_index_info->if_del = true;
                   buf = data_convert->reverse_parse_index_info(cur_index_info, &len);
                   buffer->Write(index_info.fd, offset_file-Block_Size, 0, buf, len);  
-                  delete [] buf; 
+                  if(buf!=nullptr) { delete [] buf; buf = nullptr; }
            }
 }
 int Catalog_File::get_attr_num(std::string table_name) 
 {
             offset_t offset_file = 0; 
-            Table_Info *cur_table_info ;
+            Table_Info *cur_table_info = nullptr;
             int ret;
-            char *buf;
+            char *buf = nullptr;
             while(offset_file<table_info.offset_file)
             {       
                   buffer->Read(table_info.fd, offset_file, 0, &buf);
@@ -474,6 +490,7 @@ int Catalog_File::get_attr_num(std::string table_name)
                         len = i;
                         break;
                   }
+                  if(cur_table_info!=nullptr) { delete cur_table_info; cur_table_info = nullptr; }
                   cur_table_info = data_convert->parse_table_info(buf, len);
                   offset_file += Block_Size;
                   if(cur_table_info->if_del==true) continue;
@@ -485,9 +502,9 @@ All_Type * Catalog_File::get_all_type(std::string table_name)
 {
             offset_t offset_file = 0;
             All_Type *all_type = new All_Type;
-            Attr_Info *cur_attr_info ;
+            Attr_Info *cur_attr_info = nullptr;
             int ret;
-            char *buf;
+            char *buf = nullptr;
             while(offset_file<attr_info.offset_file)
             {       
                   buffer->Read(attr_info.fd, offset_file, 0, &buf);
@@ -499,6 +516,7 @@ All_Type * Catalog_File::get_all_type(std::string table_name)
                         len = i;
                         break;
                   }
+                  if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; }
                   cur_attr_info = data_convert->parse_attr_info(buf, len);
                   offset_file += Block_Size;
                   if(cur_attr_info->if_del==true) continue;

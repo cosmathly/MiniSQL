@@ -22,7 +22,7 @@ Buffer::~Buffer()
 { 
         for(int i = 0; i < Block_Num; i++)
         if(buffer[i].if_write==true) write_to_file(i);
-        delete [] buffer;
+        if(buffer!=nullptr) { delete [] buffer; buffer = nullptr; }
 }
 int Buffer::find_not_used_block()
 {

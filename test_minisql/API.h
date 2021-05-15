@@ -119,9 +119,11 @@ class BPT
          void write_bpt_to_file() const;
          int insert(string one_key, data_pointer one_data); // 插入一个关键字
          int del(string one_key);
+         void pull_one_key_from_l(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node);
+         void pull_one_key_from_r(BPT_Node *fa_node, BPT_Node *r_brother, BPT_Node *cur_node);
+         void merge_l_cur_leaf(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node);
+         void merge_r_cur_leaf(BPT_Node *fa_node, BPT_Node *r_brother, BPT_Node *cur_node);
          int add_key_and_child(node_pointer des_node, string one_key, node_pointer src_node);
-         void update(BPT_Node *fa_node, node_pointer src_node, string des_key);
-         void del_key_and_child(BPT_Node *fa_node, node_pointer des_node);
          void update_l(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node, node_pointer l_node);
          void update_r(BPT_Node *fa_node, BPT_Node *r_brother, BPT_Node *cur_node, node_pointer r_node);
          void merge_l(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node, node_pointer l_node);

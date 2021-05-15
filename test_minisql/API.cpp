@@ -41,13 +41,13 @@ void BPT::write_bpt_to_file() const
         size_t len;
         char *buf = data_convert->reverse_parse_bpt((BPT *)this, &len);
         buffer->Write(bpt_file->fd, bpt, 0, buf, len);
-        delete [] buf;
+        if(buf!=nullptr) { delete [] buf; buf = nullptr; }
 }
 
 BPT::BPT(size_t key_size, BPT_Pointer bpt, data_type type)
 {
         if(type==Int||type==Float) key_size += 20;
-        this->m = (Block_Size-100)/(key_size+sizeof(data_pointer)+sizeof(node_pointer));
+        this->m = 3;//(Block_Size-100)/(key_size+sizeof(data_pointer)+sizeof(node_pointer));
         this->root = -1;
         this->bpt = bpt;
         this->type = type;
@@ -55,10 +55,10 @@ BPT::BPT(size_t key_size, BPT_Pointer bpt, data_type type)
 
 int BPT::add_key_and_child(node_pointer des_node, string one_key, node_pointer src_node)
 {
-     BPT_Node *cur_node;
+     BPT_Node *cur_node = nullptr;
      char *buf;
-     buffer->Read(bpt_file->fd, des_node, 0, &buf);
      size_t len;
+     buffer->Read(bpt_file->fd, des_node, 0, &buf);
      for(int i = 0; i < Block_Size; i++)
      if((*(buf+i))=='\n')
      {
@@ -68,15 +68,18 @@ int BPT::add_key_and_child(node_pointer des_node, string one_key, node_pointer s
      cur_node = data_convert->parse_bpt_node(buf, len);
      cur_node->key_num++;
      int cur_id = 0;
+     bool flag = false;
      for(auto it = cur_node->key.begin(); it != cur_node->key.end(); it++)
      {
-         if((*it)>one_key) 
+         if(greater((*it), one_key)) 
          {
              cur_node->key.insert(it, one_key);
+             flag = true;
              break;
          }
          cur_id++;
      }
+     if(flag==false) cur_node->key.insert(cur_node->key.end(), one_key); 
      int insert_id = 0;
      for(auto new_it = cur_node->child.begin(); new_it != cur_node->child.end(); new_it++)
      {
@@ -87,9 +90,11 @@ int BPT::add_key_and_child(node_pointer des_node, string one_key, node_pointer s
          }
          insert_id++;
      }
+     if(flag==false) cur_node->child.insert(cur_node->child.end(), src_node);
      buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
      buffer->Write(bpt_file->fd, des_node, 0, buf, len);
-     delete [] buf;
+     if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
+     if(buf!=nullptr) { delete [] buf; buf = nullptr; }
      return 0;
 }
 using namespace std;
@@ -107,7 +112,7 @@ bool BPT::greater(string a, string b) const
         s2 >> _b;
         return _a>_b;
      }
-     else
+     else if(type==Float)
      {
         float _a;
         float _b;
@@ -119,6 +124,7 @@ bool BPT::greater(string a, string b) const
         s2 >> _b;
         return _a>_b;
      }
+     else return a>b;
 }
 bool BPT::smaller(string a, string b) const
 {
@@ -134,7 +140,7 @@ bool BPT::smaller(string a, string b) const
         s2 >> _b;
         return _a<_b;
      }
-     else
+     else if(type==Float)
      {
         float _a;
         float _b;
@@ -146,6 +152,7 @@ bool BPT::smaller(string a, string b) const
         s2 >> _b;
         return _a<_b;
      }
+     else return a<b;
 }
 BPT::BPT(node_pointer root, Max_Son_Node_Num m, data_type type, BPT_Pointer bpt)
 { 
@@ -158,6 +165,7 @@ BPT_Node::BPT_Node()
 {
           key_num = 0; 
           is_leaf = false; 
+          parent = -1;
           pre_leaf = -1; 
           next_leaf = -1; 
 }
@@ -179,7 +187,7 @@ bool BPT::greater_equal(string a, string b) const
         s2 >> _b;
         return _a>=_b;
      }
-     else
+     else if(type==Float)
      {
         float _a;
         float _b;
@@ -191,6 +199,7 @@ bool BPT::greater_equal(string a, string b) const
         s2 >> _b;
         return _a>=_b;
      }
+     else return a>=b;
 }
 bool BPT::smaller_equal(string a, string b) const
 {
@@ -206,7 +215,7 @@ bool BPT::smaller_equal(string a, string b) const
         s2 >> _b;
         return _a<=_b;
      }
-     else
+     else if(type==Float)
      {
         float _a;
         float _b;
@@ -218,6 +227,7 @@ bool BPT::smaller_equal(string a, string b) const
         s2 >> _b;
         return _a<=_b;
      }
+     else return a<=b;
 }
 int BPT::insert(string one_key, data_pointer one_data) 
 { 
@@ -236,7 +246,7 @@ int BPT::insert(string one_key, data_pointer one_data)
        size_t len;
        char *buf = data_convert->reverse_parse_bpt_node(&new_root, &len);
        buffer->Write(bpt_file->fd, root, 0, buf, len);
-       delete [] buf;
+       if(buf!=nullptr) { delete [] buf; buf = nullptr; }
        return 0;
     }
     // 如果树不为空
@@ -246,17 +256,17 @@ int BPT::insert(string one_key, data_pointer one_data)
     BPT_Node *cur_node = nullptr;
     char *buf;
     node_pointer now_node = root;
+    size_t len;
     while(true)
     {
-         buffer->Read(bpt_file->fd, now_node, 0, &buf);
-         size_t len;
+         buffer->Read(bpt_file->fd, now_node, 0, &buf); 
          for(int i = 0; i < Block_Size; i++)
          if((*(buf+i))=='\n')
          {
             len = i;
             break;
          }
-         if(cur_node!=nullptr) delete cur_node;
+         if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
          cur_node = data_convert->parse_bpt_node(buf, len);
          if(cur_node->is_leaf==true) break;
          cur_id = 0;
@@ -270,7 +280,7 @@ int BPT::insert(string one_key, data_pointer one_data)
          {
              if(insert_id==cur_id) 
              {
-                now_node = *it;
+                now_node = (*it);
                 break;
              }
              insert_id++;
@@ -306,11 +316,10 @@ int BPT::insert(string one_key, data_pointer one_data)
     }
     if(cur_node->key_num<m) 
     { 
-       size_t len;
-       char *buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+       buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
        buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-       if(cur_node!=nullptr) delete cur_node;
-       delete [] buf;
+       if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
+       if(buf!=nullptr) { delete [] buf; buf = nullptr; }
        return 0;
     }
     // 如果关键字的个数达到了m个
@@ -338,17 +347,17 @@ int BPT::insert(string one_key, data_pointer one_data)
                    cur_id++;
              }
              add_key_and_child(cur_node->parent, new_node.key.front(), new_node_place);
-             size_t len;
-             char *buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+             buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
              buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-             delete [] buf;
+             { delete [] buf; buf = nullptr; }
              buf = data_convert->reverse_parse_bpt_node(&new_node, &len);
              buffer->Write(bpt_file->fd, new_node_place, 0, buf, len);
-             delete [] buf;
+             { delete [] buf; buf = nullptr; }
           }
           else 
           {
              BPT_Node new_node;
+             string tmp_key;
              node_pointer new_node_place = bpt_file->offset_file;
              bpt_file->offset_file += Block_Size;
              new_node.is_leaf = false;
@@ -364,34 +373,30 @@ int BPT::insert(string one_key, data_pointer one_data)
                    cur_node->key.pop_back();
                    new_node.child.push_front(cur_node->child.back());
                    cur_node->child.pop_back();
-                   cur_id++;
-                   if(cur_id==new_node.key_num)
-                   {
-                      new_node.child.push_front(cur_node->child.back());
-                      cur_node->child.pop_back();
-                   }
-             }
-             string tmp_key = cur_node->key.back();
+                   cur_id++;   
+             } 
+             new_node.child.push_front(cur_node->child.back());
+             cur_node->child.pop_back();
+             tmp_key = cur_node->key.back();
              cur_node->key.pop_back();
              add_key_and_child(cur_node->parent, tmp_key, new_node_place);
-             size_t len;
-             char *buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+             buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
              buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-             delete [] buf;
+             if(buf!=nullptr) { delete [] buf; buf = nullptr; }
              buf = data_convert->reverse_parse_bpt_node(&new_node, &len);
              buffer->Write(bpt_file->fd, new_node_place, 0, buf, len);
-             delete [] buf;
+             if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+             if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
           }
           now_node = cur_node->parent;
           buffer->Read(bpt_file->fd, now_node, 0, &buf);
-          
-          size_t len;
           for(int i = 0; i < Block_Size; i++)
           if((*(buf+i))=='\n')
           {
              len = i;
              break;
           }
+          if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
           cur_node = data_convert->parse_bpt_node(buf, len);
     }
     if(now_node==root&&cur_node->key_num==m)
@@ -431,16 +436,16 @@ int BPT::insert(string one_key, data_pointer one_data)
           new_root.key.push_back(new_node.key.front());
           new_root.key_num++;
           new_root.child.push_back(new_node_place);
-          size_t len;
-          char *buf = data_convert->reverse_parse_bpt_node(&new_root, &len);
+          buf = data_convert->reverse_parse_bpt_node(&new_root, &len);
           buffer->Write(bpt_file->fd, new_root_place, 0, buf, len);
-          delete [] buf;
+          if(buf!=nullptr) { delete [] buf; buf = nullptr; }
           buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
           buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-          delete [] buf;
+          if(buf!=nullptr) { delete [] buf; buf = nullptr; }
           buf = data_convert->reverse_parse_bpt_node(&new_node, &len);
           buffer->Write(bpt_file->fd, new_node_place, 0, buf, len);
-          delete [] buf;
+          if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+          if(cur_node!=nullptr) { delete cur_node; cur_node==nullptr; }
        }
        else 
        {
@@ -460,73 +465,27 @@ int BPT::insert(string one_key, data_pointer one_data)
                    cur_node->key.pop_back();
                    new_node.child.push_front(cur_node->child.back());
                    cur_node->child.pop_back();
-                   cur_id++;
-                   if(cur_id==new_node.key_num)
-                   {
-                      new_node.child.push_front(cur_node->child.back());
-                      cur_node->child.pop_back();
-                   }
+                   cur_id++; 
              }
+             new_node.child.push_front(cur_node->child.back());
+             cur_node->child.pop_back();
              new_root.key.push_back(cur_node->key.back());
              cur_node->key.pop_back();
-             new_root.child.push_back(new_node_place);
              new_root.key_num++;
-             size_t len;
-             char *buf = data_convert->reverse_parse_bpt_node(&new_root, &len);
+             new_root.child.push_back(new_node_place);  
+             buf = data_convert->reverse_parse_bpt_node(&new_root, &len);
              buffer->Write(bpt_file->fd, new_root_place, 0, buf, len);
-             delete [] buf;
+             if(buf!=nullptr) { delete [] buf; buf = nullptr; }
              buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
              buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-             delete [] buf;
+             if(buf!=nullptr) { delete [] buf; buf = nullptr; }
              buf = data_convert->reverse_parse_bpt_node(&new_node, &len);
              buffer->Write(bpt_file->fd, new_node_place, 0, buf, len);
-             delete [] buf;
+             if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+             if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
        }
     }
     return 0;
-}
-void BPT::update(BPT_Node *fa_node, node_pointer src_node, string des_key)
-{
-     int cur_id = 0;
-     for(auto it = fa_node->child.begin(); it != fa_node->child.end(); it++)
-     {
-         if((*it)==src_node) break;
-         cur_id++;
-     }
-     int insert_id = 0;
-     for(auto it = fa_node->key.begin(); it != fa_node->key.end(); it++)
-     {
-         if(insert_id==cur_id-1)
-         {
-            (*it) = des_key;
-            break;
-         }
-         insert_id++;
-     }
-}
-void BPT::del_key_and_child(BPT_Node *fa_node, node_pointer des_node)
-{
-     int cur_id = 0;
-     for(auto it = fa_node->child.begin(); it != fa_node->child.end(); it++)
-     {
-         if((*it)==des_node)
-         {
-            fa_node->child.erase(it);
-            break;
-         }
-         cur_id++;
-     }
-     int insert_id = 0;
-     for(auto it = fa_node->key.begin(); it != fa_node->key.end(); it++)
-     {
-         if(insert_id==cur_id-1)
-         {
-            fa_node->key.erase(it);
-            fa_node->key_num--;
-            break;
-         }
-         insert_id++;
-     }
 }
 void BPT::update_l(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node, node_pointer l_node)
 {
@@ -619,12 +578,9 @@ void BPT::merge_l(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node, no
            cur_node->child.push_front(l_brother->child.back());
            l_brother->child.pop_back();
            cur_id++;
-           if(cur_id==l_brother->key_num)
-           {
-              cur_node->child.push_front(l_brother->child.back());
-              l_brother->child.pop_back();
-           }
      } 
+     cur_node->child.push_front(l_brother->child.back());
+     l_brother->child.pop_back();
      cur_node->key_num += l_brother->key_num;
 }
 void BPT::merge_r(BPT_Node *fa_node, BPT_Node *r_brother, BPT_Node *cur_node, node_pointer r_node)
@@ -637,14 +593,14 @@ void BPT::merge_r(BPT_Node *fa_node, BPT_Node *r_brother, BPT_Node *cur_node, no
          if((*it)==r_node)
          {
             it--;
-            cur_id--;
             fa_node->child.erase(it);
             break;
          }
+         cur_id++;
      }
      for(auto it = fa_node->key.begin(); it != fa_node->key.end(); it++)
      {
-         if(insert_id==cur_id)
+         if(insert_id==cur_id-1)
          {
             r_new_key = (*it);
             fa_node->key.erase(it);
@@ -663,13 +619,132 @@ void BPT::merge_r(BPT_Node *fa_node, BPT_Node *r_brother, BPT_Node *cur_node, no
            r_brother->child.push_front(cur_node->child.back());
            cur_node->child.pop_back();
            cur_id++;
-           if(cur_id==cur_node->key_num)
-           {
-              r_brother->child.push_front(cur_node->child.back());
-              cur_node->child.pop_back();
-           }
+     }      
+     r_brother->child.push_front(cur_node->child.back());
+     cur_node->child.pop_back();
+     r_brother->key_num += cur_node->key_num;
+}
+void BPT::pull_one_key_from_l(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node)
+{
+     cur_node->key.push_front(l_brother->key.back());
+     l_brother->key.pop_back();
+     cur_node->key_num++;
+     l_brother->key_num--;
+     cur_node->data.push_front(l_brother->data.back());
+     l_brother->data.pop_back();
+     node_pointer brother = cur_node->pre_leaf;
+     int cur_id = 0;
+     int insert_id = 0;
+     for(auto it = fa_node->child.begin(); it != fa_node->child.end(); it++)
+     {
+        if((*it)==brother) break;
+        cur_id++;
+     }
+     for(auto it = fa_node->key.begin(); it != fa_node->key.end(); it++)
+     {
+        if(insert_id==cur_id)
+        {
+           (*it) = cur_node->key.front();
+           break;
+        }
+        insert_id++;
+     }
+}
+void BPT::pull_one_key_from_r(BPT_Node *fa_node, BPT_Node *r_brother, BPT_Node *cur_node)
+{
+     cur_node->key.push_back(r_brother->key.front());
+     r_brother->key.pop_front();
+     cur_node->key_num++;
+     r_brother->key_num--;
+     cur_node->data.push_back(r_brother->data.front());
+     r_brother->data.pop_front();
+     node_pointer brother = cur_node->next_leaf;
+     int cur_id = 0;
+     int insert_id = 0;
+     for(auto it = fa_node->child.begin(); it != fa_node->child.end(); it++)
+     {
+        if((*it)==brother) break;
+        cur_id++;
+     }
+     for(auto it = fa_node->key.begin(); it != fa_node->key.end(); it++)
+     {
+        if(insert_id==cur_id-1)
+        {
+           (*it) = r_brother->key.front();
+           break;
+        }
+        insert_id++;
+     }    
+}
+void BPT::merge_l_cur_leaf(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node)
+{
+     int cur_id = 0;
+     int insert_id = 0;
+     while(cur_id<l_brother->key_num)
+     {
+           cur_node->key.push_front(l_brother->key.back());
+           l_brother->key.pop_back();
+           cur_node->data.push_front(l_brother->data.back());
+           l_brother->data.pop_back();
+           cur_id++;
+     }
+     cur_node->key_num += l_brother->key_num;
+     node_pointer brother = cur_node->pre_leaf;
+     for(auto it = fa_node->child.begin(); it != fa_node->child.end(); it++)
+     {
+         if((*it)==brother)
+         {
+            fa_node->child.erase(it);
+            break;
+         }
+         cur_id++;
+     }
+     for(auto it = fa_node->key.begin(); it != fa_node->key.end(); it++)
+     {
+         if(insert_id==cur_id)
+         {
+            fa_node->key.erase(it);
+            fa_node->key_num--;
+            break;
+         }
+         insert_id++;
+     }
+}
+void BPT::merge_r_cur_leaf(BPT_Node *fa_node, BPT_Node *r_brother, BPT_Node *cur_node)
+{
+     int cur_id = 0;
+     int insert_id = 0;
+     while(cur_id<cur_node->key_num)
+     {
+           r_brother->key.push_front(cur_node->key.back());
+           cur_node->key.pop_back();
+           r_brother->data.push_front(cur_node->data.back());
+           cur_node->data.pop_back();
+           cur_id++;
      }
      r_brother->key_num += cur_node->key_num;
+     node_pointer brother = cur_node->next_leaf;
+     for(auto it = fa_node->child.begin(); it != fa_node->child.end(); it++)
+     {
+         if((*it)==brother)
+         {
+            --it;
+            --cur_id;
+            fa_node->child.erase(it);
+            break;
+         }
+         cur_id++;
+     }
+     for(auto it = fa_node->key.begin(); it != fa_node->key.end(); it++)
+     {
+         if(insert_id==cur_id)
+         {
+            fa_node->key.erase(it);
+            fa_node->key_num--;
+            break;
+         }
+         insert_id++;
+     } 
 }
 int BPT::del(string one_key) // 已经确保one_key存在
 {
@@ -681,22 +756,22 @@ int BPT::del(string one_key) // 已经确保one_key存在
     int ret;
     int cur_id;
     int insert_id;
-    BPT_Node *cur_node;
-    char *buf;
+    BPT_Node *cur_node = nullptr;
+    char *buf = nullptr;
     node_pointer now_node = root;
+    size_t len;
     while(true)
     {
          buffer->Read(bpt_file->fd, now_node, 0, &buf);
-         
-         size_t len;
          for(int i = 0; i < Block_Size; i++)
          if((*(buf+i))=='\n')
          {
             len = i;
             break;
          }
-         cur_node = data_convert->parse_bpt_node(buf, len);
-         if(cur_node->is_leaf==true) break;
+         if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
+         cur_node = data_convert->parse_bpt_node(buf, len);    
+         if(cur_node->is_leaf==true) break; 
          cur_id = 0;
          for(auto it = cur_node->key.begin(); it != cur_node->key.end(); it++)
          { 
@@ -718,7 +793,7 @@ int BPT::del(string one_key) // 已经确保one_key存在
     bool if_found = false;
     for(auto it = cur_node->key.begin(); it != cur_node->key.end(); it++)
     {    
-        if((*it)==one_key) 
+        if(equal((*it), one_key)) 
         {
            if_found = true;
            cur_node->key.erase(it);
@@ -728,10 +803,11 @@ int BPT::del(string one_key) // 已经确保one_key存在
         cur_id++; 
     }
     if(if_found==false) 
-    {
+    { 
        err_info = "key not exists.";
        return -1;
     }
+   
     insert_id = 0;
     for(auto it = cur_node->data.begin(); it != cur_node->data.end(); it++)
     {
@@ -745,48 +821,80 @@ int BPT::del(string one_key) // 已经确保one_key存在
     int min_key_num = ceil((double)m/2.0)-1;
     if(cur_node->key_num>=min_key_num) 
     { 
-       size_t len;
-       char *buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+       buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
        buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-       delete [] buf;
-       return ret;
+       if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+       if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
+       return 0;
     }
     if(now_node==root)
     {
        if(cur_node->key_num==0) 
        {
           root = -1;
+          write_bpt_to_file();
           return 0;
        } 
        else 
        { 
-          size_t len;
-          char *buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+          buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
           buffer->Write(bpt_file->fd, root, 0, buf, len);
-          delete [] buf;
-          return ret;
+          if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+          if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
+          return 0;
        }
     }
+    BPT_Node *fa_node = nullptr;
+    BPT_Node *brother_node = nullptr;
+    BPT_Node *to_change_node = nullptr;
+    BPT_Node *l_brother = nullptr;
+    BPT_Node *r_brother = nullptr;
     while(now_node!=root&&cur_node->key_num<min_key_num)
     {
           if(cur_node->is_leaf==true)
-          {
-             BPT_Node *fa_node;
-             buffer->Read(bpt_file->fd, cur_node->parent, 0, &buf);  
-             size_t len;
+          { 
+             buffer->Read(bpt_file->fd, cur_node->parent, 0, &buf);
              for(int i = 0; i < Block_Size; i++)
              if((*(buf+i))=='\n')
              {
-                  len = i;
-                  break;
+                len = i;
+                break;
              }
+             if(fa_node!=nullptr) { delete fa_node; fa_node = nullptr; }
              fa_node = data_convert->parse_bpt_node(buf, len);
-             auto it = fa_node->child.begin();
-             for(; it != fa_node->child.end(); it++)
-             if((*it)==now_node) break;
-             if((*it)==fa_node->child.front())
+             l_brother = nullptr;
+             r_brother = nullptr;
+             if(now_node!=fa_node->child.front())
              {
-                BPT_Node *brother_node;
+                buffer->Read(bpt_file->fd, cur_node->pre_leaf, 0, &buf);
+                for(int i = 0; i < Block_Size; i++)
+                if((*(buf+i))=='\n')
+                {
+                   len = i;
+                   break;
+                }
+                if(l_brother!=nullptr) { delete l_brother; l_brother = nullptr; }
+                l_brother = data_convert->parse_bpt_node(buf, len);
+                if(l_brother->key_num>min_key_num)
+                {
+                   pull_one_key_from_l(fa_node, l_brother, cur_node);
+                   buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                   buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                   if(fa_node!=nullptr) { delete fa_node; fa_node = nullptr; }
+                   buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+                   buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                   if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
+                   buf = data_convert->reverse_parse_bpt_node(l_brother, &len);
+                   buffer->Write(bpt_file->fd, cur_node->pre_leaf, 0, buf, len);
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                   if(l_brother!=nullptr) { delete l_brother; l_brother = nullptr; }
+                   return 0;
+                }
+             }
+             if(now_node!=fa_node->child.back())
+             {
                 buffer->Read(bpt_file->fd, cur_node->next_leaf, 0, &buf);
                 for(int i = 0; i < Block_Size; i++)
                 if((*(buf+i))=='\n')
@@ -794,244 +902,88 @@ int BPT::del(string one_key) // 已经确保one_key存在
                    len = i;
                    break;
                 }
-                brother_node = data_convert->parse_bpt_node(buf, len);
-                if(brother_node->key_num>min_key_num)
+                if(r_brother!=nullptr) { delete r_brother; r_brother = nullptr; }
+                r_brother = data_convert->parse_bpt_node(buf, len);
+                if(r_brother->key_num>min_key_num)
                 {
-                   cur_node->key.push_back(brother_node->key.front());
-                   brother_node->key.pop_front();
-                   cur_node->key_num++;
-                   brother_node->key_num--;
-                   cur_node->data.push_back(brother_node->data.front());
-                   brother_node->data.pop_front();
-                   update(fa_node, cur_node->next_leaf, brother_node->key.front());
-                   char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                   pull_one_key_from_r(fa_node, r_brother, cur_node);
+                   buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
                    buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
-                   delete [] buf;
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                   if(fa_node!=nullptr) { delete fa_node; fa_node = nullptr; }
                    buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
                    buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-                   delete [] buf;
-                   buf = data_convert->reverse_parse_bpt_node(brother_node, &len);
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                   if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
+                   buf = data_convert->reverse_parse_bpt_node(r_brother, &len);
                    buffer->Write(bpt_file->fd, cur_node->next_leaf, 0, buf, len);
-                   delete [] buf;
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                   if(r_brother!=nullptr) { delete r_brother; r_brother = nullptr; }
                    return 0;
                 }
-                else 
-                {
-                   cur_id = 0;
-                   while(cur_id<min_key_num)
+             }
+             if(l_brother!=nullptr)
+             {
+                   merge_l_cur_leaf(fa_node, l_brother, cur_node);
+                   node_pointer ll_brother = l_brother->pre_leaf;
+                   cur_node->pre_leaf = ll_brother;
+                   if(ll_brother!=-1)
                    {
-                         cur_node->key.push_back(brother_node->key.front());
-                         brother_node->key.pop_front();
-                         cur_node->data.push_back(brother_node->data.front());
-                         brother_node->data.pop_front();
-                         cur_id++;
+                      buffer->Read(bpt_file->fd, ll_brother, 0, &buf);
+                      for(int i = 0; i < len; i++)
+                      if((*(buf+i))=='\n')
+                      {
+                         len = i;
+                         break;
+                      }
+                      BPT_Node *ll_brother_node = data_convert->parse_bpt_node(buf, len);
+                      ll_brother_node->next_leaf = now_node;
+                      buf = data_convert->reverse_parse_bpt_node(ll_brother_node, &len);
+                      buffer->Write(bpt_file->fd, ll_brother, 0, buf, len);
+                      if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                      if(ll_brother_node!=nullptr) { delete ll_brother_node; ll_brother_node = nullptr; }
                    }
-                   cur_node->key_num += min_key_num;
-                   cur_node->next_leaf = brother_node->next_leaf;
-                   BPT_Node *to_change_node;
-                   if(brother_node->next_leaf!=-1)
-                   {  
-                       buffer->Read(bpt_file->fd, brother_node->next_leaf, 0, &buf);
-                       for(int i = 0; i < Block_Size; i++)
-                       if((*(buf+i))=='\n')
-                       {
-                           len = i;
-                           break;
-                       }
-                       to_change_node = data_convert->parse_bpt_node(buf, len);
-                       to_change_node->pre_leaf = now_node;
-                   }     
-                   del_key_and_child(fa_node, cur_node->next_leaf);
-                   char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                   buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
                    buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
-                   delete [] buf;
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                   if(fa_node!=nullptr) { delete fa_node; fa_node = nullptr; }
                    buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
                    buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-                   delete [] buf;
-                   if(brother_node->next_leaf!=-1)
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+             }
+             else if(r_brother!=nullptr)
+             {
+                   merge_r_cur_leaf(fa_node, r_brother, cur_node);
+                   node_pointer ll_brother = cur_node->pre_leaf;
+                   r_brother->pre_leaf = ll_brother;
+                   if(ll_brother!=-1)
                    {
-                      buf = data_convert->reverse_parse_bpt_node(to_change_node, &len);
-                      buffer->Write(bpt_file->fd, brother_node->next_leaf, 0, buf, len);
-                      delete [] buf;
-                   }  
-                }
-             }
-             else if((*it)==fa_node->child.back())
-             {
-                  BPT_Node *brother_node;
-                  buffer->Read(bpt_file->fd, cur_node->pre_leaf, 0, &buf);
-                  for(int i = 0; i < Block_Size; i++)
-                  if((*(buf+i))=='\n')
-                  {
-                     len = i;
-                     break;
-                  }
-                  brother_node = data_convert->parse_bpt_node(buf, len);
-                  if(brother_node->key_num>min_key_num)
-                  {
-                     string src_key = cur_node->key.front();
-                     cur_node->key.push_front(brother_node->key.back());
-                     brother_node->key.pop_back();
-                     cur_node->key_num++;
-                     brother_node->key_num--;
-                     cur_node->data.push_front(brother_node->data.back());
-                     brother_node->data.pop_back();
-                     update(fa_node, now_node, cur_node->key.front());
-                     char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
-                     buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
-                     delete [] buf;
-                     buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
-                     buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-                     delete [] buf;
-                     buf = data_convert->reverse_parse_bpt_node(brother_node, &len);
-                     buffer->Write(bpt_file->fd, cur_node->pre_leaf, 0, buf, len);
-                     delete [] buf;
-                     return 0;
-                  }
-                  else 
-                  {
-                     cur_id = 0;
-                     while(cur_id<cur_node->key_num)
-                     {
-                          brother_node->key.push_back(cur_node->key.front());
-                          cur_node->key.pop_front();
-                          brother_node->data.push_back(cur_node->data.front());
-                          cur_node->data.pop_front();
-                          cur_id++;
-                     }
-                     brother_node->key_num += cur_node->key_num;
-                     brother_node->next_leaf = cur_node->next_leaf;
-                     BPT_Node *to_change_node;
-                     if(cur_node->next_leaf!=-1)
-                     {
-                        buffer->Read(bpt_file->fd, cur_node->next_leaf, 0, &buf);
-                        for(int i = 0; i < Block_Size; i++)
-                        if((*(buf+i))=='\n')
-                        {
-                           len = i;
-                           break;
-                        }
-                        to_change_node = data_convert->parse_bpt_node(buf, len);
-                        to_change_node->pre_leaf = cur_node->pre_leaf;
-                     }
-                     del_key_and_child(fa_node, now_node);
-                     buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
-                     buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
-                     delete [] buf;
-                     buf = data_convert->reverse_parse_bpt_node(brother_node, &len);
-                     buffer->Write(bpt_file->fd, cur_node->pre_leaf, 0, buf, len);
-                     delete [] buf;
-                     if(cur_node->next_leaf!=-1)
-                     {
-                        buf = data_convert->reverse_parse_bpt_node(to_change_node, &len);
-                        buffer->Write(bpt_file->fd, cur_node->next_leaf, 0, buf, len);
-                        delete [] buf;
-                     }
-                  }
-             }
-             else 
-             {
-                  BPT_Node *l_brother;
-                  buffer->Read(bpt_file->fd, cur_node->pre_leaf, 0, &buf);
-                  for(int i = 0; i < Block_Size; i++)
-                  if((*(buf+i))=='\n')
-                  {
-                     len = i;
-                     break;
-                  }
-                  l_brother = data_convert->parse_bpt_node(buf, len);
-                  if(l_brother->key_num>min_key_num)
-                  {
-                     cur_node->key.push_front(l_brother->key.back());
-                     l_brother->key.pop_back();
-                     cur_node->data.push_front(l_brother->data.back());
-                     l_brother->data.pop_back();
-                     cur_node->key_num++;
-                     l_brother->key_num--;
-                     update(fa_node, now_node, cur_node->key.front());
-                     char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
-                     buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
-                     delete [] buf;
-                     buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
-                     buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-                     delete [] buf;
-                     buf = data_convert->reverse_parse_bpt_node(l_brother, &len);
-                     buffer->Write(bpt_file->fd, cur_node->pre_leaf, 0, buf, len);
-                     delete [] buf;
-                     return 0;
-                  }
-                  BPT_Node *r_brother;
-                  buffer->Read(bpt_file->fd, cur_node->next_leaf, 0, &buf);
-                  for(int i = 0; i < Block_Size; i++)
-                  if((*(buf+i))=='\n')
-                  {
-                     len = i;
-                     break;
-                  }
-                  r_brother = data_convert->parse_bpt_node(buf, len);
-                  if(r_brother->key_num>min_key_num)
-                  {
-                     cur_node->key.push_back(r_brother->key.front());
-                     r_brother->key.pop_front();
-                     cur_node->data.push_back(r_brother->data.front());
-                     r_brother->key.pop_front();
-                     cur_node->key_num++;
-                     r_brother->key_num--;
-                     update(fa_node, cur_node->next_leaf, r_brother->key.front());
-                     char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
-                     buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
-                     delete [] buf;
-                     buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
-                     buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-                     delete [] buf;
-                     buf = data_convert->reverse_parse_bpt_node(r_brother, &len);
-                     buffer->Write(bpt_file->fd, cur_node->next_leaf, 0, buf, len);
-                     delete [] buf;
-                     return 0;
-                  }
-                  cur_id = 0;
-                  while(cur_id<min_key_num)
-                  {
-                       cur_node->key.push_back(r_brother->key.front());
-                       r_brother->key.pop_front();
-                       cur_node->data.push_back(r_brother->data.front());
-                       r_brother->data.pop_front();
-                  }
-                  cur_node->key_num += min_key_num;
-                  cur_node->next_leaf = r_brother->next_leaf;
-                  BPT_Node *to_change_node;
-                  if(r_brother->next_leaf!=-1)
-                  {
-                     buffer->Read(bpt_file->fd, r_brother->next_leaf, 0, &buf);
-                     for(int i = 0; i < Block_Size; i++)
-                     if((*(buf+i))=='\n')
-                     {
-                        len = i;
-                        break;
-                     }
-                     to_change_node = data_convert->parse_bpt_node(buf, len);
-                     to_change_node->pre_leaf = now_node;
-                  }
-                  del_key_and_child(fa_node, cur_node->next_leaf);
-                  char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
-                  buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
-                  delete [] buf;
-                  buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
-                  buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-                  delete [] buf;
-                  if(r_brother->next_leaf!=-1)
-                  {
-                     buf = data_convert->reverse_parse_bpt_node(to_change_node, &len);
-                     buffer->Write(bpt_file->fd, r_brother->next_leaf, 0, buf, len);
-                     delete [] buf;
-                  }
+                      buffer->Read(bpt_file->fd, ll_brother, 0, &buf);
+                      for(int i = 0; i < len; i++)
+                      if((*(buf+i))=='\n')
+                      {
+                         len = i;
+                         break;
+                      }
+                      BPT_Node *ll_brother_node = data_convert->parse_bpt_node(buf, len);
+                      ll_brother_node->next_leaf = cur_node->next_leaf;
+                      buf = data_convert->reverse_parse_bpt_node(ll_brother_node, &len);
+                      buffer->Write(bpt_file->fd, ll_brother, 0, buf, len);
+                      if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                      if(ll_brother_node!=nullptr) { delete ll_brother_node; ll_brother_node = nullptr; }
+                   }
+                   buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                   buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; } 
+                   if(fa_node!=nullptr) { delete fa_node; fa_node = nullptr; }
+                   buf = data_convert->reverse_parse_bpt_node(r_brother, &len);
+                   buffer->Write(bpt_file->fd, cur_node->next_leaf, 0, buf, len);
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
              }
           }
           else
           { 
-             BPT_Node *fa_node = nullptr;
              buffer->Read(bpt_file->fd, cur_node->parent, 0, &buf);
-             size_t len;
              for(int i = 0; i < Block_Size; i++)
              if((*(buf+i))=='\n')
              {
@@ -1039,11 +991,11 @@ int BPT::del(string one_key) // 已经确保one_key存在
                 break;
              }
              fa_node = data_convert->parse_bpt_node(buf, len);
-             BPT_Node *l_brother = nullptr;
-             BPT_Node *r_brother = nullptr;
              auto it = fa_node->child.begin();
              for(; it != fa_node->child.end(); it++)
              if((*it)==now_node) break;
+             l_brother = nullptr;
+             r_brother = nullptr;
              if(now_node!=fa_node->child.front())
              {
                 it--;
@@ -1053,20 +1005,22 @@ int BPT::del(string one_key) // 已经确保one_key存在
                 {
                    len = i;
                    break;
-                }
+                } 
+                if(l_brother!=nullptr) { delete l_brother; l_brother = nullptr; }
                 l_brother = data_convert->parse_bpt_node(buf, len);
                 if(l_brother->key_num>min_key_num)
                 {
                    update_l(fa_node, l_brother, cur_node, (*it));
-                   char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                   buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
                    buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
-                   delete [] buf;
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
                    buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
                    buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-                   delete [] buf;
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
                    buf = data_convert->reverse_parse_bpt_node(l_brother, &len);
                    buffer->Write(bpt_file->fd, (*it), 0, buf, len);
-                   delete [] buf;
+                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                   if(l_brother!=nullptr) { delete l_brother; l_brother = nullptr; }
                    return 0;
                 }
                 it++;
@@ -1081,19 +1035,20 @@ int BPT::del(string one_key) // 已经确保one_key存在
                    len = i;
                    break;
                 }
+                if(r_brother!=nullptr) { delete r_brother; r_brother = nullptr; }
                 r_brother = data_convert->parse_bpt_node(buf, len);
                 if(r_brother->key_num>min_key_num)
                 {
                    update_r(fa_node, r_brother, cur_node, (*it));
                    char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
                    buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
-                   delete [] buf;
+                   { delete [] buf; buf = nullptr; }
                    buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
                    buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-                   delete [] buf;
+                   { delete [] buf; buf = nullptr; }
                    buf = data_convert->reverse_parse_bpt_node(r_brother, &len);
                    buffer->Write(bpt_file->fd, (*it), 0, buf, len);
-                   delete [] buf;
+                   { delete [] buf; buf = nullptr; }
                    return 0;
                 }
                 it--;
@@ -1102,43 +1057,44 @@ int BPT::del(string one_key) // 已经确保one_key存在
              {
                 it--;
                 merge_l(fa_node, l_brother, cur_node, (*it));
-                char *buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
-                buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
-                delete [] buf;
-                buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
-                buffer->Write(bpt_file->fd, now_node, 0, buf, len);
-                delete [] buf;
-             }
-             else 
-             {
-                it++;
-                merge_r(fa_node, r_brother, cur_node, (*it));
-                char *buf = data_convert->reverse_parse_bpt_node(r_brother, &len);
-                buffer->Write(bpt_file->fd, (*it), 0, buf, len);
-                delete [] buf;
                 buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
                 buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
-                delete [] buf;
+                if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                buf = data_convert->reverse_parse_bpt_node(cur_node, &len);
+                buffer->Write(bpt_file->fd, now_node, 0, buf, len);
+                if(buf!=nullptr) { delete [] buf; buf = nullptr; }
              }
-          }  
+             else if(r_brother!=nullptr)
+             {
+                  it++;
+                  merge_r(fa_node, r_brother, cur_node, (*it));
+                  buf = data_convert->reverse_parse_bpt_node(r_brother, &len);
+                  buffer->Write(bpt_file->fd, (*it), 0, buf, len);
+                  if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                  if(r_brother!=nullptr) { delete r_brother; r_brother = nullptr; }
+                  buf = data_convert->reverse_parse_bpt_node(fa_node, &len);
+                  buffer->Write(bpt_file->fd, cur_node->parent, 0, buf, len);
+                  if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                  if(fa_node!=nullptr) { delete fa_node; fa_node = nullptr; }
+             }
+          }     
           now_node = cur_node->parent;
           buffer->Read(bpt_file->fd, now_node, 0, &buf);
-          
-          size_t len;
           for(int i = 0; i < Block_Size; i++)
           if((*(buf+i))=='\n')
           {
             len = i;
             break;
           }
+          if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
           cur_node = data_convert->parse_bpt_node(buf, len);
+
     }
     if(now_node==root&&cur_node->key_num==0)
     {
        root = cur_node->child.front();
-       BPT_Node *new_root;
+       BPT_Node *new_root = nullptr;
        buffer->Read(bpt_file->fd, root, 0, &buf);
-       size_t len;
        for(int i = 0; i < Block_Size; i++)
        if((*(buf+i))=='\n')
        {
@@ -1147,9 +1103,12 @@ int BPT::del(string one_key) // 已经确保one_key存在
        }
        new_root = data_convert->parse_bpt_node(buf, len);
        new_root->parent = -1;
-       char *buf = data_convert->reverse_parse_bpt_node(new_root, &len);
+       buf = data_convert->reverse_parse_bpt_node(new_root, &len);
        buffer->Write(bpt_file->fd, root, 0, buf, len);
-       delete [] buf;
+       if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+       if(new_root!=nullptr) { delete new_root; new_root = nullptr; }
+       if(cur_node!=nullptr) { delete cur_node; cur_node = nullptr; }
+       write_bpt_to_file();
        return 0;
     }
     return 0;
@@ -1583,7 +1542,7 @@ Record_Set * BPT::find_all() const
                        }
                        tmp_record = data_convert->parse_record(buf, len);                       
                        ans->record.push_back(*tmp_record);
-                       if(tmp_record!=nullptr) delete tmp_record;
+                       if(tmp_record!=nullptr) { delete tmp_record; tmp_record = nullptr; }
                    }
                    now_leaf = cur_leaf->next_leaf;
                    if(now_leaf==-1) return ans; 
@@ -1594,7 +1553,7 @@ Record_Set * BPT::find_all() const
                        len = i;
                        break;
                    }
-                   if(cur_leaf!=nullptr) delete cur_leaf;
+                   if(cur_leaf!=nullptr) { delete cur_leaf; cur_leaf = nullptr; }
                    cur_leaf = data_convert->parse_bpt_node(buf, len);
              }
 }

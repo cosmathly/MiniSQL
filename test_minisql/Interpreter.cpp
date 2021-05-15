@@ -188,6 +188,7 @@ cmd_type parse_create_index(std::vector<std::string> &all_str)
          if(catalog_file->check_index_if_exist(all_str[2])==true) { err_info = "index exists."; return Error; }
          if(catalog_file->check_attr_if_exist(all_str[4], all_str[6])==false) {  err_info = "index exists."; return Error; }
          if(catalog_file->check_table_attr_if_exist(all_str[4], all_str[6])==true) { err_info = "index about this atrribute on the table exists."; return Error; }
+         if(catalog_file->check_attr_if_unique(all_str[4], all_str[6])==false) { err_info = "this attribute is not unique."; return Error; }
          to_insert_index_info = new Index_Info;
          (*to_insert_index_info).if_del = false;
          (*to_insert_index_info).index_name = all_str[2];
@@ -265,8 +266,10 @@ cmd_type parse_select(std::vector<std::string> &all_str)
                      if(cond.val[cond.val.size()-1]!='\'') { err_info = "syntax error."; return Error; }
                      if(type!=Char) { err_info = "data type error."; return Error; }
                      if(cond.val.size()-2!=data_size) { err_info = "data size error."; return Error; }
-                     if(cond.op=="="||cond.op=="<>") (*condition).push_back(cond);
-                     else { err_info = "string can't be compared."; return Error; }
+                     cond.val.erase(cond.val.begin());
+                     cond.val.erase(cond.val.end()-1);
+                     if(cond.op=="="||cond.op=="<>") (*condition).push_back(cond);                     
+                     else { err_info = "string can't be compared."; return Error; }                       
                   }
                   else 
                   {
@@ -358,6 +361,7 @@ cmd_type parse_insert(std::vector<std::string> &all_str)
          else
          {
             Record_Set *all_record = record_manager->select_all_record(all_str[2]);
+            if(all_record==nullptr) return Insert;
             for(auto it = all_record->record.begin(); it != all_record->record.end(); it++)
             {
                 for(int i = 0; i < attr_num; i++)
@@ -408,6 +412,8 @@ cmd_type parse_delete(std::vector<std::string> &all_str)
                      if(cond.val[cond.val.size()-1]!='\'') { err_info = "syntax error."; return Error; }
                      if(type!=Char) { err_info = "data type error."; return Error; }
                      if(cond.val.size()-2!=data_size) { err_info = "data size error."; return Error; }
+                     cond.val.erase(cond.val.begin());
+                     cond.val.erase(cond.val.end()-1);
                      if(cond.op=="="||cond.op=="<>") (*condition).push_back(cond);
                      else { err_info = "string can't be compared."; return Error; }
                   }
@@ -467,6 +473,19 @@ cmd_type parse()
          if(all_str[0]=="execfile") return parse_execfile(all_str);
          err_info = "command not exist."; 
          return Error; 
+}
+void p_attr_info(Attr_Info *des)
+{
+     cout<<des->if_del<<endl;
+     cout<<des->table_name<<endl;
+     for(auto it = des->attr.begin(); it != des->attr.end(); it++)
+     {
+         cout<<(*it).attr_name<<" "<<(*it).data_size<<" "<<(*it).if_unique<<" "<<(*it).data_size<<" "<<(*it).type<<endl;
+     }
+}
+void p_table_info(Table_Info *des)
+{
+     cout<<des->table_name<<" "<<des->if_del<<" "<<des->primary_key<<" "<<des->attr_num<<endl;
 }
 int main()
 {
@@ -547,6 +566,7 @@ int main()
                     }
                     break;
                     case select_part:
+                    cout<<(*condition)[0].attr_name<<" "<<(*condition)[0].op<<" "<<(*condition)[0].val<<endl;
                     record_set = record_manager->select_part_record(*to_select_table_name, *condition);
                     if(record_set==nullptr) std::cout<<"record not found."<<std::endl;
                     else 
@@ -561,6 +581,8 @@ int main()
                            std::cout<<(*tmp_it)<<" ";
                            std::cout<<std::endl;
                        }
+                       if(all_attr!=nullptr) { delete all_attr; all_attr = nullptr; }
+                       if(record_set!=nullptr) { delete record_set; record_set = nullptr; }
                     }
                     break;
                }
@@ -581,13 +603,13 @@ int main()
                }
                break;
                case Quit:
-               delete buffer;
-               delete catalog_file;
-               delete bpt_file;
-               delete bpt_info_file;
-               delete index_manager;
-               delete record_manager; 
-               delete table_file;
+               delete buffer; buffer = nullptr;
+               delete catalog_file; catalog_file = nullptr; 
+               delete bpt_file; bpt_file = nullptr; 
+               delete bpt_info_file; bpt_info_file = nullptr;
+               delete index_manager; index_manager = nullptr; 
+               delete record_manager; record_manager = nullptr; 
+               delete table_file; table_info = nullptr;
                exit(0);
                break;
                case Execfile:
@@ -599,6 +621,6 @@ int main()
                std::cout<<err_info<<std::endl;
                break;
          }
-    } 
+    }
     return 0;
 }
