@@ -3,35 +3,35 @@
 #include <sys/types.h>
 #include <fcntl.h>
 using namespace std;
-Index_Info *to_insert_index_info;
+Index_Info *to_insert_index_info = nullptr;
 char c;
 char cmd[cmd_max_size];
 int cnt_char = 0;
-char *err_info; // 记录全局的错误信息
-Data_Convert *data_convert;
-Buffer *buffer;
-Catalog_File *catalog_file;
-BPT_Info_File *bpt_info_file;
-Table_File *table_file;
-BPT_File *bpt_file;
+char *err_info = nullptr; // 记录全局的错误信息
+Data_Convert *data_convert = nullptr;
+Buffer *buffer = nullptr;
+Catalog_File *catalog_file = nullptr;
+BPT_Info_File *bpt_info_file = nullptr;
+Table_File *table_file = nullptr;
+BPT_File *bpt_file = nullptr;
 read_mode _read_mode_;
 delete_type delete_option;
-std::string *to_delete_record_table_name;
-char *read_file_name;
+std::string *to_delete_record_table_name = nullptr;
+char *read_file_name = nullptr;
 File_Descriptor read_fd;
 select_type select_option;
-Record_Manager *record_manager;
-std::string *to_select_table_name;
-std::vector<Predicate> *condition;
+Record_Manager *record_manager = nullptr;
+std::string *to_select_table_name = nullptr;
+std::vector<Predicate> *condition = nullptr;
 std::string *to_insert_table_name;
-Record *to_insert_record;
-Table_Info *table_info;
-Index_Info *index_info;
-Attr_Info *attr_info;
-std::string *to_drop_table_name;
-Index_Manager *index_manager;
-std::string *to_create_index_name, *to_create_index_table_name, *to_create_index_attr_name;
-std::string *to_delete_index_name;
+Record *to_insert_record = nullptr;
+Table_Info *table_info = nullptr;
+Index_Info *index_info = nullptr;
+Attr_Info *attr_info = nullptr;
+std::string *to_drop_table_name = nullptr;
+Index_Manager *index_manager = nullptr;
+std::string *to_create_index_name = nullptr, *to_create_index_table_name = nullptr, *to_create_index_attr_name = nullptr;
+std::string *to_delete_index_name = nullptr;
 void initial()
 {
      data_convert = new Data_Convert;
@@ -265,7 +265,7 @@ cmd_type parse_select(std::vector<std::string> &all_str)
                   {
                      if(cond.val[cond.val.size()-1]!='\'') { err_info = "syntax error."; return Error; }
                      if(type!=Char) { err_info = "data type error."; return Error; }
-                     if(cond.val.size()-2!=data_size) { err_info = "data size error."; return Error; }
+                     if(cond.val.size()-2>data_size||cond.val.size()-2==0) { err_info = "data size error."; return Error; }
                      cond.val.erase(cond.val.begin());
                      cond.val.erase(cond.val.end()-1);
                      if(cond.op=="="||cond.op=="<>") (*condition).push_back(cond);                     
@@ -304,6 +304,7 @@ cmd_type parse_insert(std::vector<std::string> &all_str)
          if(all_str[size-1]!=")") {  err_info = "syntax error."; return Error; }
          All_Attr *all_attr = catalog_file->get_all_attr(all_str[2]);
          int attr_num = all_attr->attr_info.size();
+         if(attr_num!=all_str.size()-6) { err_info = "attribute not integral."; return Error; }
          for(int i = 0; i < attr_num; i++)
          {
                   std::string attr_val = all_str[5+i];
@@ -313,7 +314,7 @@ cmd_type parse_insert(std::vector<std::string> &all_str)
                   {
                      if(attr_val[attr_val.size()-1]!='\'') { err_info = "syntax error."; return Error; }
                      if(type!=Char) { err_info = "data type error."; return Error; }
-                     if(attr_val.size()-2!=data_size) { err_info = "data size error."; return Error; }
+                     if(attr_val.size()-2>data_size||attr_val.size()-2==0) { err_info = "data size error."; return Error; }
                   }
                   else 
                   {
@@ -361,7 +362,12 @@ cmd_type parse_insert(std::vector<std::string> &all_str)
          else
          {
             Record_Set *all_record = record_manager->select_all_record(all_str[2]);
-            if(all_record==nullptr) return Insert;
+            if(all_record==nullptr) 
+            {
+               for(int i = 0; i < attr_num; i++)
+               (*to_insert_record).attr.push_back(all_str[i+5]);
+               return Insert;
+            }
             for(auto it = all_record->record.begin(); it != all_record->record.end(); it++)
             {
                 for(int i = 0; i < attr_num; i++)
@@ -411,7 +417,7 @@ cmd_type parse_delete(std::vector<std::string> &all_str)
                   {
                      if(cond.val[cond.val.size()-1]!='\'') { err_info = "syntax error."; return Error; }
                      if(type!=Char) { err_info = "data type error."; return Error; }
-                     if(cond.val.size()-2!=data_size) { err_info = "data size error."; return Error; }
+                     if(cond.val.size()-2>data_size||cond.val.size()-2==0) { err_info = "data size error."; return Error; }
                      cond.val.erase(cond.val.begin());
                      cond.val.erase(cond.val.end()-1);
                      if(cond.op=="="||cond.op=="<>") (*condition).push_back(cond);
@@ -474,22 +480,10 @@ cmd_type parse()
          err_info = "command not exist."; 
          return Error; 
 }
-void p_attr_info(Attr_Info *des)
-{
-     cout<<des->if_del<<endl;
-     cout<<des->table_name<<endl;
-     for(auto it = des->attr.begin(); it != des->attr.end(); it++)
-     {
-         cout<<(*it).attr_name<<" "<<(*it).data_size<<" "<<(*it).if_unique<<" "<<(*it).data_size<<" "<<(*it).type<<endl;
-     }
-}
-void p_table_info(Table_Info *des)
-{
-     cout<<des->table_name<<" "<<des->if_del<<" "<<des->primary_key<<" "<<des->attr_num<<endl;
-}
 int main()
 {
     initial();
+    freopen("out.txt", "w", stdout);
     while(true)
     {
          cnt_char = 0;
@@ -566,7 +560,6 @@ int main()
                     }
                     break;
                     case select_part:
-                    cout<<(*condition)[0].attr_name<<" "<<(*condition)[0].op<<" "<<(*condition)[0].val<<endl;
                     record_set = record_manager->select_part_record(*to_select_table_name, *condition);
                     if(record_set==nullptr) std::cout<<"record not found."<<std::endl;
                     else 
@@ -622,5 +615,6 @@ int main()
                break;
          }
     }
+    fclose(stdout);
     return 0;
 }

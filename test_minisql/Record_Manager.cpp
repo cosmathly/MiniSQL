@@ -67,7 +67,7 @@ int Record_Manager::delete_part_record(std::string table_name, std::vector<Predi
      Record_Set *all_record = select_part_record(table_name, condition);
      if(all_record==nullptr) return 0;
      for(auto it = all_record->record.begin(); it != all_record->record.end(); it++)
-     delete_one_record(table_name, (Record *)(&(*it))); 
+     delete_one_record(table_name, (Record *)(&(*it)));  
      int size = all_record->record.size();
      if(all_record!=nullptr) { delete all_record; all_record = nullptr; }
      return size;
@@ -82,7 +82,6 @@ Record_Set * Record_Manager::select_all_record(std::string table_name)
              BPT *bpt = nullptr;
              while(offset_file<bpt_info_file->offset_file)
              {
-                   if(bpt_info!=nullptr) { delete bpt; bpt = nullptr; }
                    buffer->Read(bpt_info_file->fd, offset_file, 0, &buf);
                    for(int i = 0; i < Block_Size; i++)
                    if((*(buf+i))=='\n')
@@ -90,6 +89,7 @@ Record_Set * Record_Manager::select_all_record(std::string table_name)
                       len = i;
                       break;
                    }
+                   if(bpt_info!=nullptr) { delete bpt; bpt = nullptr; }
                    bpt_info = data_convert->parse_bpt_info(buf, len);
                    offset_file += Block_Size;
                    if(bpt_info->is_del==true) continue;
@@ -345,8 +345,7 @@ void Record_Manager::insert_one_record(std::string table_name, Record *des_recor
          if(flag==false) continue;
          offset_file = 0;
          while(offset_file<bpt_info_file->offset_file)
-         {
-               if(bpt_info!=nullptr) { delete bpt_info; bpt_info = nullptr; }
+         {        
                buffer->Read(bpt_info_file->fd, offset_file, 0, &buf);
                offset_file += Block_Size;
                for(int i = 0; i < Block_Size; i++)
@@ -355,6 +354,7 @@ void Record_Manager::insert_one_record(std::string table_name, Record *des_recor
                   len = i;
                   break;
                }
+               if(bpt_info!=nullptr) { delete bpt_info; bpt_info = nullptr; }
                bpt_info = data_convert->parse_bpt_info(buf, len);
                if(bpt_info->is_del==true) continue;
                if(bpt_info->table_name!=table_name) continue;

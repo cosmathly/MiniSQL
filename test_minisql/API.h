@@ -124,9 +124,9 @@ class BPT
          void merge_l_cur_leaf(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node);
          void merge_r_cur_leaf(BPT_Node *fa_node, BPT_Node *r_brother, BPT_Node *cur_node);
          int add_key_and_child(node_pointer des_node, string one_key, node_pointer src_node);
-         void update_l(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node, node_pointer l_node);
-         void update_r(BPT_Node *fa_node, BPT_Node *r_brother, BPT_Node *cur_node, node_pointer r_node);
-         void merge_l(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node, node_pointer l_node);
+         void update_l(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node, node_pointer l_node, node_pointer now_node);
+         void update_r(BPT_Node *fa_node, BPT_Node *r_brother, BPT_Node *cur_node, node_pointer r_node, node_pointer now_node);
+         void merge_l(BPT_Node *fa_node, BPT_Node *l_brother, BPT_Node *cur_node, node_pointer l_node, node_pointer now_node);
          void merge_r(BPT_Node *fa_node, BPT_Node *r_brother, BPT_Node *cur_node, node_pointer r_node);
          leaf_node find(string des_key) const;
          Record * find_equal(string des_key) const; 

@@ -56,7 +56,6 @@ void Index_Manager::create_index(std::string index_name, std::string table_name,
      all_data = primary_bpt->find_all_data();
      Record *record = nullptr;
      int pos = catalog_file->find_attr_pos(table_name, attr_name);
-     if(all_data==nullptr) { cout<<"all_data==nullptr"<<endl; return ;}
      int size = all_data->data.size();
      BPT *new_bpt = new BPT(key_size, bpt_info->BPT, type);
      for(int i = 0; i < size; i++)
