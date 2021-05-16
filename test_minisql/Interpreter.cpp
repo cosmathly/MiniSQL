@@ -483,7 +483,6 @@ cmd_type parse()
 int main()
 {
     initial();
-    freopen("out.txt", "w", stdout);
     while(true)
     {
          cnt_char = 0;
