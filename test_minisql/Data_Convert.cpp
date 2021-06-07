@@ -84,7 +84,7 @@ BPT * Data_Convert::parse_bpt(char *parse_start_place, size_t len)
 {
       vector<string> all_str;
       parse_into_string(all_str, parse_start_place, len);
-      BPT *new_bpt;
+      BPT *new_bpt = nullptr;
       node_pointer root;
       Max_Son_Node_Num m;
       BPT_Pointer bpt;

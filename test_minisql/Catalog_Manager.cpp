@@ -415,6 +415,7 @@ void Catalog_File::drop_table(std::string table_name)
                   buf = data_convert->reverse_parse_table_info(cur_table_info, &len);
                   buffer->Write(table_info.fd, offset_file-Block_Size, 0, buf, len);
                   if(buf!=nullptr) { delete [] buf; buf = nullptr;}
+                  break;
             }
 }
 void Catalog_File::drop_attr(std::string table_name)
@@ -437,25 +438,27 @@ void Catalog_File::drop_attr(std::string table_name)
                   if(cur_attr_info!=nullptr) { delete cur_attr_info; cur_attr_info = nullptr; }
                   cur_attr_info = data_convert->parse_attr_info(buf, len);
                   offset_file += Block_Size;
+                  if(cur_attr_info==nullptr) continue;
                   if(cur_attr_info->if_del==true) continue;
                   if(cur_attr_info->table_name!=table_name) continue;
                   cur_attr_info->if_del = true;
                   buf = data_convert->reverse_parse_attr_info(cur_attr_info, &len);
                   buffer->Write(attr_info.fd, offset_file-Block_Size, 0, buf,  len);
-                  if(buf!=nullptr) { delete [] buf; buf = nullptr; } 
+                  if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                  break;
             }
 }
 void Catalog_File::drop_index(std::string index_name)
 {
            offset_t offset_file = 0;
            Index_Info *cur_index_info = nullptr;
-           int ret;
            char *buf = nullptr;
+           size_t len;
+           std::string attr_name;
+           std::string table_name;
            while(offset_file<index_info.offset_file)
            {     
                   buffer->Read(index_info.fd, offset_file, 0, &buf);
-                  if(ret==-1) break;
-                  size_t len;
                   for(int i = 0; i < Block_Size; i++)
                   if((*(buf+i))=='\n')
                   {
@@ -468,10 +471,36 @@ void Catalog_File::drop_index(std::string index_name)
                   if(cur_index_info->if_del==true) continue;
                   if(cur_index_info->index_name!=index_name) continue;
                   cur_index_info->if_del = true;
+                  attr_name = cur_index_info->attr_name;
+                  table_name = cur_index_info->table_name;
                   buf = data_convert->reverse_parse_index_info(cur_index_info, &len);
                   buffer->Write(index_info.fd, offset_file-Block_Size, 0, buf, len);  
                   if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                  break;
            }
+           offset_file = 0;
+           BPT_Info *cur_bpt_info = nullptr;
+           while(offset_file<bpt_info_file->offset_file)
+           {     
+                  buffer->Read(bpt_info_file->fd, offset_file, 0, &buf);
+                  for(int i = 0; i < Block_Size; i++)
+                  if((*(buf+i))=='\n')
+                  {
+                        len = i;
+                        break;
+                  }
+                  if(cur_bpt_info!=nullptr) { delete cur_bpt_info; cur_bpt_info = nullptr; }
+                  cur_bpt_info = data_convert->parse_bpt_info(buf, len);
+                  offset_file += Block_Size;
+                  if(cur_bpt_info->is_del==true) continue;
+                  if(cur_bpt_info->table_name!=table_name) continue;
+                  if(cur_bpt_info->attr_name!=attr_name) continue;
+                  cur_bpt_info->is_del = true;
+                  buf = data_convert->reverse_parse_bpt_info(cur_bpt_info, &len);
+                  buffer->Write(bpt_info_file->fd, offset_file-Block_Size, 0, buf, len);  
+                  if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+                  break;
+           } 
 }
 int Catalog_File::get_attr_num(std::string table_name) 
 {
@@ -525,4 +554,51 @@ All_Type * Catalog_File::get_all_type(std::string table_name)
                   all_type->type.push_back((*it).type);
                   return all_type;
             }
+}
+void Catalog_File::drop_all_index(std::string table_name)
+{
+           offset_t offset_file = 0;
+           Index_Info *cur_index_info = nullptr;
+           char *buf = nullptr;
+           size_t len;
+           while(offset_file<index_info.offset_file)
+           {     
+                  buffer->Read(index_info.fd, offset_file, 0, &buf);
+                  for(int i = 0; i < Block_Size; i++)
+                  if((*(buf+i))=='\n')
+                  {
+                        len = i;
+                        break;
+                  }
+                  if(cur_index_info!=nullptr) { delete cur_index_info; cur_index_info = nullptr; }
+                  cur_index_info = data_convert->parse_index_info(buf, len);
+                  offset_file += Block_Size;
+                  if(cur_index_info->if_del==true) continue;
+                  if(cur_index_info->table_name!=table_name) continue;
+                  cur_index_info->if_del = true;
+                  buf = data_convert->reverse_parse_index_info(cur_index_info, &len);
+                  buffer->Write(index_info.fd, offset_file-Block_Size, 0, buf, len);  
+                  if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+           }
+           offset_file = 0;
+           BPT_Info *cur_bpt_info = nullptr;
+           while(offset_file<bpt_info_file->offset_file)
+           {     
+                  buffer->Read(bpt_info_file->fd, offset_file, 0, &buf);
+                  for(int i = 0; i < Block_Size; i++)
+                  if((*(buf+i))=='\n')
+                  {
+                        len = i;
+                        break;
+                  }
+                  if(cur_bpt_info!=nullptr) { delete cur_bpt_info; cur_bpt_info = nullptr; }
+                  cur_bpt_info = data_convert->parse_bpt_info(buf, len);
+                  offset_file += Block_Size;
+                  if(cur_bpt_info->is_del==true) continue;
+                  if(cur_bpt_info->table_name!=table_name) continue;
+                  cur_bpt_info->is_del = true;
+                  buf = data_convert->reverse_parse_bpt_info(cur_bpt_info, &len);
+                  buffer->Write(bpt_info_file->fd, offset_file-Block_Size, 0, buf, len);  
+                  if(buf!=nullptr) { delete [] buf; buf = nullptr; }
+           }           
 }

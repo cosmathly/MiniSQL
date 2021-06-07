@@ -124,6 +124,7 @@ class Catalog_File
          All_Attr * get_all_attr(std::string table_name) ;
          int find_attr_pos(std::string table_name, std::string attr_name) ;
          All_Type * get_all_type(std::string table_name) ;
+         void drop_all_index(std::string table_name) ;
 };  
 
 #endif 

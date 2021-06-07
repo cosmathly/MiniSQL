@@ -482,6 +482,7 @@ cmd_type parse()
 }
 int main()
 {
+    freopen("out.txt", "w", stdout);
     initial();
     while(true)
     {
@@ -522,6 +523,7 @@ int main()
                case Drop_Table:
                catalog_file->drop_table(*to_drop_table_name);
                catalog_file->drop_attr(*to_drop_table_name);
+               catalog_file->drop_all_index(*to_drop_table_name);
                std::cout<<"drop table success."<<std::endl;
                break;
                case Create_Index:
