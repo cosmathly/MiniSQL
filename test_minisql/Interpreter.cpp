@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <fcntl.h>
 using namespace std;
+bool flag;
 Index_Info *to_insert_index_info = nullptr;
 char c;
 char cmd[cmd_max_size];
@@ -451,7 +452,11 @@ cmd_type parse_quit(std::vector<std::string> &all_str)
 cmd_type parse_execfile(std::vector<std::string> &all_str)
 {
          if(all_str.size()!=2) { err_info = "syntax error."; return Error; }
-         read_file_name = (char *)all_str[1].c_str();
+         int len = all_str[1].size();
+         read_file_name = new char[len+1];
+         for(int i = 0; i < len; i++)
+         read_file_name[i] = (char)all_str[1][i];
+         read_file_name[len] = '\0';
          return Execfile;
 }
 cmd_type parse()
@@ -487,6 +492,7 @@ int main()
     while(true)
     {
          cnt_char = 0;
+         flag = false;
          switch(_read_mode_)
          {
               case keyboard:
@@ -494,7 +500,7 @@ int main()
               while(true)
               {
                    c = getchar();
-                   if(c==';') break;
+                   if(c==';') { flag = true; break; }
                    cmd[cnt_char++] = c;
                    if(cnt_char==cmd_max_size) break; 
               }
@@ -504,11 +510,12 @@ int main()
               {
                    int len = read(read_fd, &c, sizeof(c));
                    if(len==0) { _read_mode_ = keyboard; close(read_fd); break; }
-                   if(c==';') break;
+                   if(c==';') { flag = true; break; }
                    cmd[cnt_char++] = c;
                    if(cnt_char==cmd_max_size) break;
               }
          }
+         if(flag==false) continue; 
          if(cnt_char==0) { std::cout<<"command not integral."<<std::endl; continue; }
          if(cnt_char==cmd_max_size) { std::cout<<"command is too long."<<std::endl; continue; }
          cmd_type Cmd_Type = parse();
@@ -610,6 +617,8 @@ int main()
                read_fd = open(read_file_name, O_RDWR);
                if(read_fd==-1) std::cout<<"file not exist."<<std::endl;
                else _read_mode_ = file;
+               delete [] read_file_name; 
+               read_file_name = nullptr;
                break;
                case Error:
                std::cout<<err_info<<std::endl;
