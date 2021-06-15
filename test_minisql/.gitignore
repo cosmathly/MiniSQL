@@ -1,0 +1,8 @@
+# ignore *.o file
+*.o
+# ignore out.txt file
+out.txt
+# ignore minisql file
+minisql
+# ignore vim *.swp file
+*.swp 
