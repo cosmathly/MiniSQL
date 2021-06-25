@@ -3,36 +3,6 @@
 #include <sys/types.h>
 #include <fcntl.h>
 using namespace std;
-bool flag;
-Index_Info *to_insert_index_info = nullptr;
-char c;
-char cmd[cmd_max_size];
-int cnt_char = 0;
-char *err_info = nullptr; // 记录全局的错误信息
-Data_Convert *data_convert = nullptr;
-Buffer *buffer = nullptr;
-Catalog_File *catalog_file = nullptr;
-BPT_Info_File *bpt_info_file = nullptr;
-Table_File *table_file = nullptr;
-BPT_File *bpt_file = nullptr;
-read_mode _read_mode_;
-delete_type delete_option;
-std::string *to_delete_record_table_name = nullptr;
-char *read_file_name = nullptr;
-File_Descriptor read_fd;
-select_type select_option;
-Record_Manager *record_manager = nullptr;
-std::string *to_select_table_name = nullptr;
-std::vector<Predicate> *condition = nullptr;
-std::string *to_insert_table_name;
-Record *to_insert_record = nullptr;
-Table_Info *table_info = nullptr;
-Index_Info *index_info = nullptr;
-Attr_Info *attr_info = nullptr;
-std::string *to_drop_table_name = nullptr;
-Index_Manager *index_manager = nullptr;
-std::string *to_create_index_name = nullptr, *to_create_index_table_name = nullptr, *to_create_index_attr_name = nullptr;
-std::string *to_delete_index_name = nullptr;
 void initial()
 {
      data_convert = new Data_Convert;
@@ -48,8 +18,51 @@ void initial()
 using std::cout;
 using std::endl;
 void update_err_info() { err_info = (char *)"system call failed."; }
+void get_all_str_create_table(std::vector<std::string> &all_str)
+{
+     std::string pattern = "\\s+([a-z]+)\\s*[(]{1}";
+     std::regex r(pattern);
+     std::smatch result;
+     if(regex_search(cmd_str, result, r)==false) return ; 
+     all_str.push_back(result.str(1));
+     all_str.push_back("(");
+     auto itl = cmd_str.begin();
+     auto itr = cmd_str.end();
+     for(; itl != cmd_str.end(); ++itl)
+     if((*itl)=='(') { ++itl; break; }
+     pattern = "([a-z]+)\\s+(int|float|char\\s*[(]{1}\\s*[0-9]+\\s*[)]{1})(\\s+unique)?\\s*[,]{1}";
+     r = pattern;
+     for(sregex_iterator it(itl, itr, r), end_it; it != end_it; ++it)
+     {
+        all_str.push_back(it->str(1));
+        if((it->str(2))[0]=='c')
+        {
+           std::string real_string;
+           std::string cur_string = it->str(2);
+           for(auto ch : cur_string)
+           if(ch!=' '&&ch!='\n') real_string += ch;
+           all_str.push_back(real_string);
+        }
+        else all_str.push_back(it->str(2));
+        if((it->str(3)).size()!=0) all_str.push_back("unique");
+     }
+     pattern = "primary\\s+key\\s*[(]{1}\\s*([a-z]+)\\s*[)]{1}";
+     r = pattern;
+     if(regex_search(cmd_str, result, r)==false) return ;
+     all_str.push_back("primary");
+     all_str.push_back("key");
+     all_str.push_back("(");
+     all_str.push_back(result.str(1));
+     all_str.push_back(")");
+     pattern = "[)]{1}\\s*[)]{1}\\s*$";
+     r = pattern;
+     if(regex_search(cmd_str, result, r)==false) return ;
+     all_str.push_back(")");
+     return ;
+}
 cmd_type parse_create_table(std::vector<std::string> &all_str)
 {
+         get_all_str_create_table(all_str);
          int size = all_str.size();
          if(size<8) { err_info = "command not integral."; return Error; }
          if(all_str[3]!="(") { err_info = "command format error."; return Error; }
@@ -177,8 +190,29 @@ cmd_type parse_create_table(std::vector<std::string> &all_str)
          if(catalog_file->check_table_if_exist(all_str[2])) { err_info = "table exists."; return Error; }
          return Create_Table;
 }
+void get_all_str_create_index(std::vector<std::string> &all_str)
+{
+     std::string pattern = "([a-z]+)\\s+on";
+     std::regex r(pattern);
+     std::smatch result;
+     if(regex_search(cmd_str, result, r)==false) return ;
+     all_str.push_back(result.str(1));
+     all_str.push_back("on");
+     pattern = "on\\s+([a-z]+)";
+     r = pattern;
+     if(regex_search(cmd_str, result, r)==false) return ;
+     all_str.push_back(result.str(1));
+     all_str.push_back("(");
+     pattern = "[(]{1}\\s*([a-z]+)\\s*[)]{1}";
+     r = pattern;
+     if(regex_search(cmd_str, result, r)==false) return ;
+     all_str.push_back(result.str(1));
+     all_str.push_back(")");
+     return ;
+}
 cmd_type parse_create_index(std::vector<std::string> &all_str)
 {
+         get_all_str_create_index(all_str);
          to_create_index_name = new std::string; 
          to_create_index_table_name = new std::string;
          to_create_index_attr_name = new std::string;
@@ -199,7 +233,12 @@ cmd_type parse_create_index(std::vector<std::string> &all_str)
 }
 cmd_type parse_create(std::vector<std::string> &all_str)
 {
-         if(all_str.size()==1) { err_info = "command not integral."; return Error; }
+         std::string pattern = "create\\s+([a-z]+)";
+         std::regex r(pattern);
+         std::smatch result;
+         if(regex_search(cmd_str, result, r)==false) { err_info = "command not integral."; return Error; }
+         all_str.push_back(result.str(1));
+         //if(all_str.size()==1) { err_info = "command not integral."; return Error; }
          if(all_str[1]=="table") return parse_create_table(all_str);
          if(all_str[1]=="index") return parse_create_index(all_str);
          err_info = "command not exist.";
@@ -207,13 +246,23 @@ cmd_type parse_create(std::vector<std::string> &all_str)
 }
 cmd_type parse_drop_table(std::vector<std::string> &all_str)
 {
-         to_drop_table_name = new std::string;
+         std::string pattern = "table\\s+([a-z]+)";
+         std::regex r(pattern);
+         std::smatch result;
+         if(regex_search(cmd_str, result, r)==false) { err_info = "command not integral."; return Error; }
+         all_str.push_back(result.str(1)); // 可以考虑通过移动语义来进行移动构造.
+         to_drop_table_name = new std::string; 
          (*to_drop_table_name) = all_str[2];
          if(catalog_file->check_table_if_exist(all_str[2])==false) { err_info = "table not exists."; return Error; }
          return Drop_Table;
 }
 cmd_type parse_drop_index(std::vector<std::string> &all_str)
 {
+         std::string pattern = "index\\s+([a-z]+)";
+         std::regex r(pattern);
+         std::smatch result;
+         if(regex_search(cmd_str, result, r)==false) { err_info = "command not integral."; return Error; }
+         all_str.push_back(result.str(1));
          to_delete_index_name = new std::string;
          (*to_delete_index_name) = all_str[2];
          if(catalog_file->check_index_if_exist(all_str[2])==false) { err_info = "index not exists."; return Error; }
@@ -221,16 +270,56 @@ cmd_type parse_drop_index(std::vector<std::string> &all_str)
 }
 cmd_type parse_drop(std::vector<std::string> &all_str)
 {
-         if(all_str.size()<3) { err_info = "command not integral."; return Error; }
-         if(all_str.size()>3) { err_info = "syntax error."; return Error; }
+         std::string pattern = "drop\\s+([a-z]+)";
+         regex r(pattern);
+         std::smatch result;
+         if(regex_search(cmd_str, result, r)==false) { err_info = "command not integral."; return Error; }
+         all_str.push_back(result.str(1));
+         //if(all_str.size()<3) { err_info = "command not integral."; return Error; }
+         //if(all_str.size()>3) { err_info = "syntax error."; return Error; }
          if(all_str[1]=="table") return parse_drop_table(all_str);
          if(all_str[1]=="index") return parse_drop_index(all_str);
          err_info = "command not exist."; 
          return Error; 
 }
-
+void get_all_str_select(std::vector<std::string> &all_str)
+{
+     all_str.push_back("*");
+     all_str.push_back("from");
+     std::string pattern = "from\\s+([a-z]+)";
+     std::regex r(pattern);
+     std::smatch result;
+     if(regex_search(cmd_str, result, r)==false) return ;
+     all_str.push_back(result.str(1));
+     pattern = "where";
+     r = pattern;
+     if(regex_search(cmd_str, result, r)==false) return ;
+     all_str.push_back("where");
+     pattern = "([a-z]+)\\s+([><=]+)\\s+([^\\s]+)";
+     r = pattern;
+     for(sregex_iterator it(cmd_str.begin(), cmd_str.end(), r), end_it; it != end_it; ++it)
+     {
+        all_str.push_back(it->str(1));
+        all_str.push_back(it->str(2));
+        if((it->str(3))[0]=='\"')
+        {
+          std::string real_string;
+          std::string tmp_string = it->str(3);
+          real_string += '\'';
+          for(auto ch : tmp_string)
+          if(ch!='\"') real_string += ch;
+          real_string += '\'';
+          all_str.push_back(real_string);
+        }
+        else all_str.push_back(it->str(3));
+        all_str.push_back("and");
+     }
+     all_str.pop_back();
+     return ;
+}
 cmd_type parse_select(std::vector<std::string> &all_str)
 {
+         get_all_str_select(all_str);
          if(all_str.size()<4) { err_info = "command not integral."; return Error; }
          if(all_str[1]!="*") { err_info = "syntax error."; return Error; }
          if(all_str[2]!="from") { err_info = "syntax error."; return Error; }
@@ -292,8 +381,37 @@ cmd_type parse_select(std::vector<std::string> &all_str)
          }
          return Select;
 }
-cmd_type parse_insert(std::vector<std::string> &all_str)
+void get_all_str_insert(std::vector<std::string> &all_str)
 {
+     all_str.push_back("into");
+     std::string pattern = "into\\s+([a-z]+)";
+     regex r(pattern);
+     std::smatch result;
+     if(regex_search(cmd_str, result, r)==false) return ;
+     all_str.push_back(result.str(1));
+     all_str.push_back("values");
+     all_str.push_back("(");
+     pattern = "([^(\\s)]{1}[^(]*?)\\s*(?:[,]{1}|[)]{1})";
+     r = pattern;
+     for(sregex_iterator it(cmd_str.begin(), cmd_str.end(), r), end_it; it != end_it; ++it)
+     {
+         if((it->str(1))[0]!='\"') all_str.push_back(it->str(1));
+         else 
+         {
+            std::string real_string;
+            real_string += '\'';
+            std::string tmp_string = it->str(1);
+            for(auto ch : tmp_string)
+            if(ch!='\"') real_string += ch;
+            real_string += '\'';
+            all_str.push_back(real_string);
+         }
+     }
+     all_str.push_back(")");
+}
+cmd_type parse_insert(std::vector<std::string> &all_str)
+{ 
+         get_all_str_insert(all_str);
          int size = all_str.size();
          if(size<=6) { err_info = "command not integral."; return Error; }
          to_insert_table_name = new std::string;
@@ -382,8 +500,43 @@ cmd_type parse_insert(std::vector<std::string> &all_str)
             return Insert;
          }
 }
+void get_all_str_delete(std::vector<std::string> &all_str)
+{
+     all_str.push_back("from");
+     std::string pattern = "from\\s+([a-z]+)";
+     std::regex r(pattern);
+     std::smatch result;
+     if(regex_search(cmd_str, result, r)==false) return ;
+     all_str.push_back(result.str(1));
+     pattern = "where";
+     r = pattern;
+     if(regex_search(cmd_str, result, r)==false) return ;
+     all_str.push_back("where");
+     pattern = "([a-z]+)\\s+([><=]+)\\s+([^\\s]+)";
+     r = pattern;
+     for(sregex_iterator it(cmd_str.begin(), cmd_str.end(), r), end_it; it != end_it; ++it)
+     {
+        all_str.push_back(it->str(1));
+        all_str.push_back(it->str(2));
+        if((it->str(3))[0]=='\"')
+        {
+          std::string real_string;
+          std::string tmp_string = it->str(3);
+          real_string += '\'';
+          for(auto ch : tmp_string)
+          if(ch!='\"') real_string += ch;
+          real_string += '\'';
+          all_str.push_back(real_string);
+        }
+        else all_str.push_back(it->str(3));
+        all_str.push_back("and");
+     }
+     all_str.pop_back();
+     return ;
+}
 cmd_type parse_delete(std::vector<std::string> &all_str)
 {
+         get_all_str_delete(all_str);
          if(all_str.size()<3) { err_info = "command not integral."; return Error; }
          if(all_str[1]!="from") { err_info = "syntax error."; return Error; }
          to_delete_record_table_name = new std::string;
@@ -446,12 +599,20 @@ cmd_type parse_delete(std::vector<std::string> &all_str)
 }
 cmd_type parse_quit(std::vector<std::string> &all_str)
 {
-         if(all_str.size()!=1) { err_info = "syntax error."; return Error; }
+         std::string pattern = "[^quit\\s]";
+         std::regex r(pattern);
+         std::smatch result;
+         if(regex_search(cmd_str, result, r)==true) { err_info = "syntax error."; return Error; }
+         //if(all_str.size()!=1) { err_info = "syntax error."; return Error; }
          return Quit;
 }
 cmd_type parse_execfile(std::vector<std::string> &all_str)
 {
-         if(all_str.size()!=2) { err_info = "syntax error."; return Error; }
+         std::string pattern = "execfile\\s+([^\\s]+)";
+         std::regex r(pattern);
+         std::smatch result;
+         if(regex_search(cmd_str, result, r)==false) { err_info = "syntax error."; return Error; }
+         else all_str.push_back(result.str(1));
          int len = all_str[1].size();
          read_file_name = new char[len+1];
          for(int i = 0; i < len; i++)
@@ -464,18 +625,23 @@ cmd_type parse()
          std::vector<std::string> all_str;
          std::string cur_str; 
          int pos = 0;
-         while(true) 
-         {
-              while(pos<cnt_char&&(cmd[pos]==' '||cmd[pos]=='\n')) pos++;
-              if(pos>=cnt_char) break;
+         while(cmd[pos]==' '||cmd[pos]=='\n') pos++;
+         //while(true) 
+         //{
+              //while(pos<cnt_char&&(cmd[pos]==' '||cmd[pos]=='\n')) pos++;
+              //if(pos>=cnt_char) break;
               while(pos<cnt_char&&(cmd[pos]!=' '&&cmd[pos]!='\n')) cur_str += cmd[pos++];
               all_str.push_back(cur_str);
               cur_str.clear();
-         }
-         for(auto it = all_str.begin(); it != all_str.end(); it++)
-         if((*it)[(*it).size()-1]==',') (*it).erase((*it).end()-1);
+         //}
+         //for(auto it = all_str.begin(); it != all_str.end(); it++)
+         //if((*it)[(*it).size()-1]==',') (*it).erase((*it).end()-1);
+         //std::cout<<all_str[0]<<endl;
+         cmd_str.clear();
+         for(int i = 0; i < cnt_char; i++)
+         cmd_str += cmd[i];
          if(all_str.size()==0) { err_info = "command not found."; return Error; }
-         if(all_str[0]=="create") return parse_create(all_str);
+         if(all_str[0]=="create") return parse_create(all_str); 
          if(all_str[0]=="drop") return parse_drop(all_str);
          if(all_str[0]=="select") return parse_select(all_str);
          if(all_str[0]=="insert") return parse_insert(all_str);

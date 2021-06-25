@@ -1,14 +1,14 @@
-create table person (  height float unique, 
+create table person(  height float unique, 
 pid int, 
 name char(32),
-identity char(128) unique,
+identity char (128) unique,
 age int unique,
-primary key ( pid )
+primary key (pid)
  );
 
-insert into person values ( 171.1, 1, 'Person1', '000001', 81 );
-insert into person values ( 162.1, 2, 'Person2', '000002', 19 );
-insert into person values ( 163.3, 3, 'Person3', '000003', 20 );
+insert into person values (171.1, 1, 'Person1', '000001', 81 );
+insert into person values (162.1, 2, 'Person2', '000002', 19 );
+insert into person values (163.3, 3, 'Person3', '000003', 20 );
 insert into person values ( 174.9, 4, 'Person4', '000004', 21 );
 insert into person values ( 175.0, 5, 'Person5', '000005', 22 );
 insert into person values ( 176.1, 6, 'Person6', '000006', 23 );
