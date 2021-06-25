@@ -6,3 +6,5 @@ out.txt
 minisql
 # ignore vim *.swp file
 *.swp 
+# ignore .vscode
+.vscode
