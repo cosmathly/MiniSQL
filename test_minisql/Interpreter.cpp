@@ -20,7 +20,7 @@ using std::endl;
 void update_err_info() { err_info = (char *)"system call failed."; }
 void get_all_str_create_table(std::vector<std::string> &all_str)
 {
-     std::string pattern = "\\s+([a-z]+)\\s*[(]{1}";
+     std::string pattern = "\\s+([^\\s]+)\\s*[(]{1}";
      std::regex r(pattern);
      std::smatch result;
      if(regex_search(cmd_str, result, r)==false) return ; 
@@ -30,7 +30,7 @@ void get_all_str_create_table(std::vector<std::string> &all_str)
      auto itr = cmd_str.end();
      for(; itl != cmd_str.end(); ++itl)
      if((*itl)=='(') { ++itl; break; }
-     pattern = "([a-z]+)\\s+(int|float|char\\s*[(]{1}\\s*[0-9]+\\s*[)]{1})(\\s+unique)?\\s*[,]{1}";
+     pattern = "([^\\s]+)\\s+(int|float|char\\s*[(]{1}\\s*[0-9]+\\s*[)]{1})(\\s+unique)?\\s*[,]{1}";
      r = pattern;
      for(sregex_iterator it(itl, itr, r), end_it; it != end_it; ++it)
      {
@@ -46,7 +46,7 @@ void get_all_str_create_table(std::vector<std::string> &all_str)
         else all_str.push_back(it->str(2));
         if((it->str(3)).size()!=0) all_str.push_back("unique");
      }
-     pattern = "primary\\s+key\\s*[(]{1}\\s*([a-z]+)\\s*[)]{1}";
+     pattern = "primary\\s+key\\s*[(]{1}\\s*([^\\s]+)\\s*[)]{1}";
      r = pattern;
      if(regex_search(cmd_str, result, r)==false) return ;
      all_str.push_back("primary");
@@ -192,18 +192,18 @@ cmd_type parse_create_table(std::vector<std::string> &all_str)
 }
 void get_all_str_create_index(std::vector<std::string> &all_str)
 {
-     std::string pattern = "([a-z]+)\\s+on";
+     std::string pattern = "([^\\s]+)\\s+on";
      std::regex r(pattern);
      std::smatch result;
      if(regex_search(cmd_str, result, r)==false) return ;
      all_str.push_back(result.str(1));
      all_str.push_back("on");
-     pattern = "on\\s+([a-z]+)";
+     pattern = "on\\s+([^\\s]+)";
      r = pattern;
      if(regex_search(cmd_str, result, r)==false) return ;
      all_str.push_back(result.str(1));
      all_str.push_back("(");
-     pattern = "[(]{1}\\s*([a-z]+)\\s*[)]{1}";
+     pattern = "[(]{1}\\s*([^\\s]+)\\s*[)]{1}";
      r = pattern;
      if(regex_search(cmd_str, result, r)==false) return ;
      all_str.push_back(result.str(1));
@@ -246,7 +246,7 @@ cmd_type parse_create(std::vector<std::string> &all_str)
 }
 cmd_type parse_drop_table(std::vector<std::string> &all_str)
 {
-         std::string pattern = "table\\s+([a-z]+)";
+         std::string pattern = "table\\s+([^\\s]+)";
          std::regex r(pattern);
          std::smatch result;
          if(regex_search(cmd_str, result, r)==false) { err_info = "command not integral."; return Error; }
@@ -258,7 +258,7 @@ cmd_type parse_drop_table(std::vector<std::string> &all_str)
 }
 cmd_type parse_drop_index(std::vector<std::string> &all_str)
 {
-         std::string pattern = "index\\s+([a-z]+)";
+         std::string pattern = "index\\s+([^\\s]+)";
          std::regex r(pattern);
          std::smatch result;
          if(regex_search(cmd_str, result, r)==false) { err_info = "command not integral."; return Error; }
