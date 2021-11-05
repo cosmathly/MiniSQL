@@ -1,6 +1,6 @@
 #include "Catalog_Manager.h"
-#include "Interpreter.h"
-#include "Buffer_Manager.h"
+//#include "Interpreter.h"
+#include "Data_Convert.h"
 #include <string.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -9,6 +9,7 @@ using namespace std;
 extern Buffer *buffer;
 extern Data_Convert *data_convert;
 extern Catalog_File *catalog_file;
+extern BPT_Info_File *bpt_info_file;
 Table_Info_File::Table_Info_File()
 {
       fd = open("./DB_Files/Table_Info", O_RDWR|O_CREAT, 0777);

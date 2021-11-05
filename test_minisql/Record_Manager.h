@@ -4,7 +4,7 @@
 #include "API.h"
 #include "Buffer_Manager.h"
 #include "Index_Manager.h"
-#include "Interpreter.h"
+//#include "Interpreter.h"
 #include "Catalog_Manager.h"
 class Record_Manager;
 typedef int Attr_Num;

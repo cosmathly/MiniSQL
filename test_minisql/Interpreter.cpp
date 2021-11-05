@@ -2,6 +2,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#include <ctime>
 using namespace std;
 void initial()
 {
@@ -653,10 +654,13 @@ cmd_type parse()
 }
 int main()
 {
-    freopen("out.txt", "w", stdout);
+    freopen("output.txt", "w", stdout);
     initial();
+    int cnt = 0;
+    clock_t start;
     while(true)
     {
+         ++cnt;
          cnt_char = 0;
          flag = false;
          switch(_read_mode_)
@@ -777,6 +781,10 @@ int main()
                delete index_manager; index_manager = nullptr; 
                delete record_manager; record_manager = nullptr; 
                delete table_file; table_info = nullptr;
+               {
+                  clock_t end = clock();
+                  std::cout<<"time cost"<<(double)(end-start)/CLOCKS_PER_SEC<<"s"<<std::endl;
+               }
                exit(0);
                break;
                case Execfile:
@@ -790,6 +798,7 @@ int main()
                std::cout<<err_info<<std::endl;
                break;
          }
+         if(cnt==1) start = clock();
     }
     fclose(stdout);
     return 0;
